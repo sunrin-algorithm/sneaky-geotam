@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getQuestions, getRecords, replaceQuestions, replaceRecords } from "./storage";
+import { getQuestions, getRecords, replaceQuestions, replaceRecords, saveQuestions } from "./storage";
 import { subscribeQuestions, subscribeRecords } from "./firestore";
 import { Question, RecordItem } from "./types";
 
@@ -12,6 +12,7 @@ export function useLiveRecords() {
   useEffect(() => {
     setRecords(getRecords());
     return subscribeRecords((items) => {
+      if (!items.length) return;
       replaceRecords(items);
       setRecords(items);
     });
@@ -27,6 +28,11 @@ export function useLiveQuestions() {
   useEffect(() => {
     setQuestions(getQuestions());
     return subscribeQuestions((items) => {
+      if (!items.length) {
+        const local = getQuestions();
+        if (local.length) saveQuestions(local);
+        return;
+      }
       replaceQuestions(items);
       setQuestions(items);
     });

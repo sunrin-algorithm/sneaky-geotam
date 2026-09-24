@@ -21,9 +21,16 @@ export function getQuestions(): Question[] {
   const raw = localStorage.getItem(QUESTION_KEY);
   if (!raw) {
     localStorage.setItem(QUESTION_KEY, JSON.stringify(defaultQuestions));
+    firestoreReplaceQuestions(defaultQuestions);
     return defaultQuestions;
   }
-  return JSON.parse(raw);
+  const items = JSON.parse(raw) as Question[];
+  if (!items.length) {
+    localStorage.setItem(QUESTION_KEY, JSON.stringify(defaultQuestions));
+    firestoreReplaceQuestions(defaultQuestions);
+    return defaultQuestions;
+  }
+  return items;
 }
 
 export function saveQuestions(items: Question[]) {

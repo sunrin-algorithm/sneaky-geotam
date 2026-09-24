@@ -58,19 +58,19 @@ export function subscribeQuestions(callback: (questions: Question[]) => void): (
 export function firestoreSetRecord(record: RecordItem) {
   const d = getDb();
   if (!d) return;
-  setDoc(doc(d, "records", record.id), record).catch(() => {});
+  setDoc(doc(d, "records", record.id), record).catch((e) => console.error("Firestore set record failed:", e));
 }
 
 export function firestoreUpdateRecord(id: string, patch: Partial<RecordItem>) {
   const d = getDb();
   if (!d) return;
-  updateDoc(doc(d, "records", id), patch).catch(() => {});
+  updateDoc(doc(d, "records", id), patch).catch((e) => console.error("Firestore update record failed:", e));
 }
 
 export function firestoreDeleteRecord(id: string) {
   const d = getDb();
   if (!d) return;
-  deleteDoc(doc(d, "records", id)).catch(() => {});
+  deleteDoc(doc(d, "records", id)).catch((e) => console.error("Firestore delete record failed:", e));
 }
 
 export function firestoreReplaceQuestions(items: Question[]) {
@@ -86,6 +86,8 @@ export function firestoreReplaceQuestions(items: Question[]) {
         if (!idSet.has(s.id)) batch.delete(doc(d, "questions", s.id));
       });
       await batch.commit();
-    } catch {}
+    } catch (e) {
+      console.error("Firestore replace questions failed:", e);
+    }
   })();
 }

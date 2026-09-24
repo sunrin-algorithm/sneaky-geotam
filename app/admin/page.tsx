@@ -12,12 +12,23 @@ export default function AdminPage() {
   const [newQuestion, setNewQuestion] = useState("");
   const [nickname, setNickname] = useState("");
   const [questionId, setQuestionId] = useState("");
+  const [customQuestion, setCustomQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<Result>("unknown");
 
+  const isOther = questionId === "__other__";
+
   function submitRecord() {
-    const question = questions.find((q) => q.id === questionId);
-    if (!nickname.trim() || !answer.trim() || !question) return;
+    if (!nickname.trim() || !answer.trim()) return;
+
+    let question = questions.find((q) => q.id === questionId);
+    if (isOther) {
+      if (!customQuestion.trim()) return;
+      question = { id: crypto.randomUUID(), content: customQuestion.trim() };
+      saveQuestions([...questions, question]);
+      refetchQuestions();
+    }
+    if (!question) return;
 
     saveRecord({
       id: crypto.randomUUID(),
@@ -32,6 +43,7 @@ export default function AdminPage() {
     setNickname("");
     setAnswer("");
     setResult("unknown");
+    setCustomQuestion("");
     refetchRecords();
   }
 
@@ -67,9 +79,16 @@ export default function AdminPage() {
                 <span className="text-sm font-medium">질문</span>
                 <select value={questionId} onChange={(e) => setQuestionId(e.target.value)} className="mt-2 w-full rounded-lg border border-neutral-300 bg-white p-3">
                   {questions.map((q) => <option key={q.id} value={q.id}>{q.content}</option>)}
+                  <option value="__other__">기타 (직접 입력)</option>
                 </select>
               </label>
             </div>
+            {isOther && (
+              <label className="block">
+                <span className="text-sm font-medium">직접 입력한 질문</span>
+                <input value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} className="w-full rounded-lg border border-neutral-300 p-3 outline-none" placeholder="질문을 입력하세요" />
+              </label>
+            )}
             <label className="block">
               <span className="text-sm font-medium">참가자 대답</span>
               <input value={answer} onChange={(e) => setAnswer(e.target.value)} className="mt-2 w-full rounded-lg border border-neutral-300 p-3 outline-none" placeholder="예 / 아니오" />
@@ -88,7 +107,7 @@ export default function AdminPage() {
                 ))}
               </div>
             </fieldset>
-            <button onClick={submitRecord} disabled={!nickname.trim() || !answer.trim() || !questionId} className="w-full rounded-lg bg-black py-3 font-medium text-white disabled:opacity-30">
+            <button onClick={submitRecord} disabled={!nickname.trim() || !answer.trim() || (!questionId && !isOther) || (isOther && !customQuestion.trim())} className="w-full rounded-lg bg-black py-3 font-medium text-white disabled:opacity-30">
               박제 등록
             </button>
           </div>
