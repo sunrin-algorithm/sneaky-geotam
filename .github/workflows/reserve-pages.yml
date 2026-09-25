@@ -2,7 +2,7 @@ name: Reservation preview on GitHub Pages
 
 on:
   push:
-    branches: [reserve]
+    branches: [feat/reserve]
   workflow_dispatch:
 
 permissions:
