@@ -11,6 +11,16 @@
 
 ## 실행
 
+### 예약 화면
+
+- `/reserve`: 대기 현황 → 섹션 선택 → 예약 폼. 부스 안내는 임시 Lorem ipsum입니다.
+- 현재는 UI 미리보기입니다. 대기 현황은 미연결이며 예약 접수 및 개인정보 저장·전송은 하지 않습니다.
+- 실제 운영 전 예약 저장, 대기열 조회, 운영자 호출/취소 기능을 연결해야 합니다.
+- `npm run build:pages`: 예약 화면만 `.pages-preview/out`에 정적 출력합니다. 기존 동적 결과 페이지는 이 미리보기에서 제외됩니다.
+- `reserve` 브랜치에 푸시하면 GitHub Actions가 Pages에 배포합니다. 저장소 Pages 소스를 GitHub Actions로 설정해야 합니다.
+- Pages 미리보기 주소: `https://sunrin-algorithm.github.io/sneaky-geotam/reserve/`
+- Vercel의 기본 서비스 `/reserve` 반영은 해당 브랜치를 프로덕션에 배포한 뒤 가능합니다.
+
 ```bash
 npm install
 npm run dev
