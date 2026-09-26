@@ -12,7 +12,7 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-5xl px-5 py-12">
+      <main className="mx-auto max-w-6xl px-5 py-12">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>

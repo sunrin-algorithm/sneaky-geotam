@@ -40,7 +40,7 @@ export default function ReservePage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-5xl px-5 py-10 sm:py-12">
+      <main className="mx-auto max-w-6xl px-5 py-10 sm:py-12">
           <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>
           {step !== "home" && (
             <button type="button" onClick={() => setStep(step === "form" ? "sections" : "home")} className="mt-8 text-sm text-neutral-600 underline underline-offset-4">

@@ -64,7 +64,7 @@ export default function AdminPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-5xl px-5 py-10">
+      <main className="mx-auto max-w-6xl px-5 py-10">
         <h1 className="text-3xl font-bold">관리자</h1>
 
         <section className="mt-10">

@@ -20,7 +20,7 @@ export default function SearchPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-5xl px-5 py-12">
+      <main className="mx-auto max-w-6xl px-5 py-12">
         <h1 className="text-3xl font-bold">박제 검색</h1>
         <p className="mt-2 text-neutral-500">닉네임이나 검사 번호로 찾아보세요.</p>
 
