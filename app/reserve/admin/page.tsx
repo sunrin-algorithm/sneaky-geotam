@@ -74,17 +74,17 @@ export default function ReservationAdmin() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+      <main className="mx-auto max-w-5xl px-5 py-10">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-neutral-500 lg:text-base">SUNRIN FESTIVAL 2026</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">예약 관리</h1>
-            <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base lg:text-lg">섹션별 대기 인원과 예약 상태를 확인합니다.</p>
+            <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">예약 관리</h1>
+            <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base">섹션별 대기 인원과 예약 상태를 확인합니다.</p>
           </div>
           <Link href="/reserve" className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50">예약 페이지</Link>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm lg:mt-10 lg:p-5 lg:text-base">
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
           <p className="leading-6 text-neutral-700">{demo ? "예시 데이터입니다. 변경 사항은 저장되지 않습니다." : "예약 서버 연결 전입니다. 실제 예약은 표시되지 않습니다."}</p>
           <button onClick={toggleDemo} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 font-medium hover:bg-neutral-100">{demo ? "예시 닫기" : "예시로 살펴보기"}</button>
         </div>
@@ -92,9 +92,9 @@ export default function ReservationAdmin() {
         <section className="mt-10" aria-label="섹션별 대기 현황">
           <div className="grid gap-4 sm:grid-cols-2">
             {(["자율", "공통"] as const).map((value) => (
-              <div key={value} className="rounded-xl border border-neutral-200 p-5 lg:p-7">
-                <h2 className="text-sm font-medium text-neutral-600 lg:text-base">{value} 섹션</h2>
-                <p className="mt-3 text-3xl font-bold lg:text-4xl">
+              <div key={value} className="rounded-xl border border-neutral-200 p-5">
+                <h2 className="text-sm font-medium text-neutral-600">{value} 섹션</h2>
+                <p className="mt-3 text-3xl font-bold">
                   {demo ? rows.filter((row) => row.section === value && row.status === "대기").length : "—"}
                   <span className="ml-2 text-sm font-normal text-neutral-600">팀 대기</span>
                 </p>

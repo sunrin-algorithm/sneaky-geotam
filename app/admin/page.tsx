@@ -64,12 +64,12 @@ export default function AdminPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-        <h1 className="text-3xl font-bold lg:text-5xl">관리자</h1>
+      <main className="mx-auto max-w-5xl px-5 py-10">
+        <h1 className="text-3xl font-bold">관리자</h1>
 
-        <section className="mt-10 lg:mt-12">
-          <h2 className="text-xl font-bold lg:text-2xl">박제 등록</h2>
-          <div className="mt-4 space-y-4 rounded-xl border border-neutral-200 p-5 lg:p-7">
+        <section className="mt-10">
+          <h2 className="text-xl font-bold">박제 등록</h2>
+          <div className="mt-4 space-y-4 rounded-xl border border-neutral-200 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-medium">닉네임</span>
@@ -113,8 +113,8 @@ export default function AdminPage() {
           </div>
         </section>
 
-        <section className="mt-10 lg:mt-12">
-          <h2 className="text-xl font-bold lg:text-2xl">질문 관리</h2>
+        <section className="mt-10">
+          <h2 className="text-xl font-bold">질문 관리</h2>
           <div className="mt-3 flex gap-2">
             <input value={newQuestion} onChange={(e) => setNewQuestion(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addQuestion()} className="min-w-0 flex-1 rounded-lg border border-neutral-300 p-3" placeholder="질문 추가" />
             <button onClick={addQuestion} className="rounded-lg bg-black px-5 font-medium text-white">추가</button>
@@ -129,8 +129,8 @@ export default function AdminPage() {
           </div>
         </section>
 
-        <section className="mt-12 lg:mt-14">
-          <h2 className="text-xl font-bold lg:text-2xl">박제 관리</h2>
+        <section className="mt-12">
+          <h2 className="text-xl font-bold">박제 관리</h2>
           <div className="mt-4 divide-y rounded-xl border border-neutral-200">
             {records.map((record) => (
               <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 p-4">

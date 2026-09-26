@@ -22,8 +22,8 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
     return (
       <>
         <Header />
-        <main className="mx-auto max-w-2xl px-5 py-20 text-center sm:px-6 lg:px-8 lg:py-24">
-          <h1 className="text-2xl font-bold lg:text-3xl">결과를 찾을 수 없습니다.</h1>
+        <main className="mx-auto max-w-xl px-5 py-20 text-center">
+          <h1 className="text-2xl font-bold">결과를 찾을 수 없습니다.</h1>
           <Link href="/" className="mt-6 inline-block text-sm underline">돌아가기</Link>
         </main>
       </>
@@ -46,20 +46,20 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-2xl px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+      <main className="mx-auto max-w-xl px-5 py-12">
         <Link href="/" className="text-sm text-neutral-500">← 오늘의 박제</Link>
 
-        <section className="mt-8 rounded-2xl border border-neutral-200 p-6 sm:p-8 lg:p-10">
+        <section className="mt-8 rounded-2xl border border-neutral-200 p-7">
           <div className="flex items-center justify-between text-sm text-neutral-400">
             <span>{record.number}</span>
             <span>{new Date(record.createdAt).toLocaleString("ko-KR")}</span>
           </div>
 
-          <h1 className="mt-8 text-4xl font-bold lg:text-5xl">{record.nickname}</h1>
+          <h1 className="mt-8 text-4xl font-bold">{record.nickname}</h1>
 
           <div className="mt-10">
             <p className="text-sm text-neutral-500">질문</p>
-            <p className="mt-2 text-xl font-medium leading-8 lg:text-2xl lg:leading-9">{record.question}</p>
+            <p className="mt-2 text-xl font-medium leading-8">{record.question}</p>
           </div>
 
           <div className="mt-8 border-t border-neutral-200 pt-8">
@@ -69,10 +69,10 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
 
           <div className="mt-8 border-t border-neutral-200 pt-8">
             <p className="text-sm text-neutral-500">거짓말탐지기 판정</p>
-            <p className={`mt-2 text-4xl font-bold lg:text-5xl ${resultClass}`}>{result}</p>
+            <p className={`mt-2 text-4xl font-bold ${resultClass}`}>{result}</p>
           </div>
 
-          <button onClick={share} className="mt-10 w-full rounded-lg bg-black px-5 py-3 font-medium text-white lg:py-4 lg:text-lg">
+          <button onClick={share} className="mt-10 w-full rounded-lg bg-black px-5 py-3 font-medium text-white">
             결과 공유하기
           </button>
         </section>

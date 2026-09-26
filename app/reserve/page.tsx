@@ -40,8 +40,8 @@ export default function ReservePage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-          <p className="text-sm font-medium text-neutral-500 lg:text-base">SUNRIN FESTIVAL 2026</p>
+      <main className="mx-auto max-w-5xl px-5 py-12">
+          <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>
           {step !== "home" && (
             <button type="button" onClick={() => setStep(step === "form" ? "sections" : "home")} className="mt-8 text-sm text-neutral-600 underline underline-offset-4">
               ← {step === "form" ? "섹션 선택" : "예약 홈"}
@@ -50,18 +50,18 @@ export default function ReservePage() {
 
           {step === "home" && (
             <>
-              <h1 ref={heading} tabIndex={-1} className="mt-2 text-3xl font-bold tracking-tight focus:outline-none sm:text-4xl lg:text-5xl">거짓말탐지기 예약</h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base lg:text-lg">참여할 섹션을 선택하고 예약 정보를 입력해 주세요.</p>
-              <p className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600 lg:p-5 lg:text-base">예약 화면 준비 중입니다. 지금은 실제 예약이 접수되지 않습니다.</p>
+              <h1 ref={heading} tabIndex={-1} className="mt-2 text-3xl font-bold tracking-tight focus:outline-none sm:text-4xl">거짓말탐지기 예약</h1>
+              <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base">참여할 섹션을 선택하고 예약 정보를 입력해 주세요.</p>
+              <p className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">예약 화면 준비 중입니다. 지금은 실제 예약이 접수되지 않습니다.</p>
 
-              <div className="mt-10 grid gap-8 lg:mt-12 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)] lg:gap-12">
+              <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
                 <section aria-labelledby="queue-title">
-                  <h2 id="queue-title" className="text-xl font-bold lg:text-2xl">현재 대기 현황</h2>
+                  <h2 id="queue-title" className="text-xl font-bold">현재 대기 현황</h2>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
                     {(Object.keys(sections) as Section[]).map((key) => (
-                      <div key={key} className="rounded-xl border border-neutral-200 p-5 lg:p-7">
-                        <p className="text-sm font-medium text-neutral-600 lg:text-base">{sections[key].title}</p>
-                        <p className="mt-3 text-3xl font-bold lg:text-4xl" aria-label="대기 인원 미연결">— <span className="text-sm font-normal text-neutral-600 lg:text-base">팀 대기</span></p>
+                      <div key={key} className="rounded-xl border border-neutral-200 p-5">
+                        <p className="text-sm font-medium text-neutral-600">{sections[key].title}</p>
+                        <p className="mt-3 text-3xl font-bold" aria-label="대기 인원 미연결">— <span className="text-sm font-normal text-neutral-600">팀 대기</span></p>
                       </div>
                     ))}
                   </div>
@@ -69,8 +69,8 @@ export default function ReservePage() {
                 </section>
 
                 <div className="lg:pt-10">
-                  <button type="button" onClick={() => setStep("sections")} className="w-full rounded-lg bg-black px-5 py-3 font-medium text-white lg:py-4 lg:text-lg">예약하기</button>
-                  <details className="mt-4 rounded-xl border border-neutral-200 p-5 lg:p-6">
+                  <button type="button" onClick={() => setStep("sections")} className="w-full rounded-lg bg-black px-5 py-3 font-medium text-white">예약하기</button>
+                  <details className="mt-4 rounded-xl border border-neutral-200 p-5">
                     <summary className="cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black">이 부스는 어떤 부스인가요?</summary>
                     <div className="mt-4 border-t border-neutral-100 pt-4 text-sm leading-6 text-neutral-600">
                       <p className="mb-2 font-medium">부스 안내 · 추후 업데이트 예정</p>
@@ -84,13 +84,13 @@ export default function ReservePage() {
 
           {step === "sections" && (
             <>
-              <h1 ref={heading} tabIndex={-1} className="mt-3 text-3xl font-bold tracking-tight focus:outline-none sm:text-4xl lg:text-5xl">섹션 선택</h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base lg:text-lg">참여할 섹션을 선택해 주세요.</p>
+              <h1 ref={heading} tabIndex={-1} className="mt-3 text-3xl font-bold tracking-tight focus:outline-none sm:text-4xl">섹션 선택</h1>
+              <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base">참여할 섹션을 선택해 주세요.</p>
               <div className="mt-8 grid gap-4 md:grid-cols-2">
                 {(Object.keys(sections) as Section[]).map((key) => (
-                  <button key={key} type="button" onClick={() => selectSection(key)} className="min-h-36 rounded-xl border border-neutral-200 p-5 text-left hover:bg-neutral-50 sm:p-6 lg:min-h-44 lg:p-8">
-                    <span className="text-lg font-semibold lg:text-2xl">{sections[key].title}</span>
-                    <span className="mt-3 block text-sm leading-6 text-neutral-600 lg:text-base lg:leading-7">{sections[key].notice}</span>
+                  <button key={key} type="button" onClick={() => selectSection(key)} className="min-h-36 rounded-xl border border-neutral-200 p-5 text-left hover:bg-neutral-50 sm:p-6">
+                    <span className="text-lg font-semibold">{sections[key].title}</span>
+                    <span className="mt-3 block text-sm leading-6 text-neutral-600">{sections[key].notice}</span>
                   </button>
                 ))}
               </div>
@@ -99,11 +99,11 @@ export default function ReservePage() {
 
           {step === "form" && (
             <>
-              <h1 ref={heading} tabIndex={-1} className="mt-3 text-3xl font-bold tracking-tight focus:outline-none sm:text-4xl lg:text-5xl">{sections[section].title} 예약</h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base lg:text-lg">대표자 정보와 참여 인원을 입력해 주세요.</p>
+              <h1 ref={heading} tabIndex={-1} className="mt-3 text-3xl font-bold tracking-tight focus:outline-none sm:text-4xl">{sections[section].title} 예약</h1>
+              <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base">대표자 정보와 참여 인원을 입력해 주세요.</p>
               <form onSubmit={submit} className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)] lg:gap-6">
-                <div className="space-y-5 rounded-xl border border-neutral-200 p-5 sm:p-6 lg:p-8">
-                  <h2 className="text-lg font-semibold lg:text-2xl">예약자 정보</h2>
+                <div className="space-y-5 rounded-xl border border-neutral-200 p-5 sm:p-6">
+                  <h2 className="text-lg font-semibold">예약자 정보</h2>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block">
                       <span className="text-sm font-medium">학번</span>
@@ -124,8 +124,8 @@ export default function ReservePage() {
                     <input name="people" type="number" inputMode="numeric" min={1} step={1} required placeholder="본인 포함 참여 인원" value={details.people} onChange={(e) => setDetails({ ...details, people: e.target.value })} className="mt-2 w-full rounded-lg border border-neutral-300 p-3 outline-none" />
                   </label>
                 </div>
-                <aside className="rounded-xl border border-neutral-200 bg-neutral-50 p-5 text-sm sm:p-6 lg:p-8 lg:text-base">
-                  <h2 className="text-lg font-semibold lg:text-2xl">예약 전 확인해 주세요</h2>
+                <aside className="rounded-xl border border-neutral-200 bg-neutral-50 p-5 text-sm sm:p-6">
+                  <h2 className="text-lg font-semibold">예약 전 확인해 주세요</h2>
                   <ul className="mt-4 list-disc space-y-3 pl-5 leading-6 text-neutral-700">
                     <li>연락 후 5분 간 부스에 도착하지 못할 시 예약은 취소됩니다.</li>
                     <li>{sections[section].notice}</li>
