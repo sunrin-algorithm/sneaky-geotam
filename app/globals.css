@@ -8,6 +8,10 @@
   --danger: #dc2626;
 }
 
+@media (min-width: 1600px) {
+  :root { font-size: clamp(100%, 0.9375vw, 150%); }
+}
+
 * { box-sizing: border-box; }
 
 body {
