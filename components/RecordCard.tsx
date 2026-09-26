@@ -9,7 +9,7 @@ function resultText(result: RecordItem["result"]) {
 
 export default function RecordCard({ record }: { record: RecordItem }) {
   return (
-    <Link href={`/result/${record.id}`} className="block rounded-xl border border-neutral-200 p-5 transition hover:bg-neutral-50">
+    <Link href={`/result/${record.id}`} className="block rounded-xl border border-neutral-200 p-5 transition hover:bg-neutral-50 lg:p-6">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-neutral-500">{record.number}</span>
         <span className="text-xs text-neutral-400">
@@ -18,8 +18,8 @@ export default function RecordCard({ record }: { record: RecordItem }) {
       </div>
 
       <div className="mt-4">
-        <p className="text-lg font-semibold">{record.nickname}</p>
-        <p className="mt-2 text-sm leading-6 text-neutral-600">{record.question}</p>
+        <p className="text-lg font-semibold lg:text-xl">{record.nickname}</p>
+        <p className="mt-2 text-sm leading-6 text-neutral-600 lg:text-base lg:leading-7">{record.question}</p>
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-4">
