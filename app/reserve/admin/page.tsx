@@ -1,11 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import Link from "next/link";
 import Header from "@/components/Header";
 
 type Status = "대기" | "호출" | "완료" | "취소";
-type Reservation = { id: number; section: "자율" | "공통"; name: string; studentId: string; people: number; status: Status; calledAt?: string };
+type Reservation = {
+  id: number;
+  section: "자율" | "공통";
+  name: string;
+  studentId: string;
+  people: number;
+  status: Status;
+  calledAt?: string;
+};
+
 const examples: Reservation[] = [
   { id: 1, section: "자율", name: "예시 학생 A", studentId: "10101", people: 3, status: "대기" },
   { id: 2, section: "공통", name: "예시 학생 B", studentId: "10201", people: 2, status: "대기" },
@@ -19,16 +28,24 @@ export default function ReservationAdmin() {
   const [status, setStatus] = useState("전체");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
-  const filtered = rows.filter(row => (section === "전체" || section === row.section) && (status === "전체" || status === row.status) && `${row.name} ${row.studentId} ${row.id}`.includes(query.trim()));
+  const filtered = rows.filter((row) =>
+    (section === "전체" || section === row.section) &&
+    (status === "전체" || status === row.status) &&
+    `${row.name} ${row.studentId} ${row.id}`.includes(query.trim())
+  );
 
   function update(id: number, next: Status) {
-    setRows(current => current.map(row => row.id === id ? { ...row, status: next, calledAt: next === "호출" ? new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) : undefined } : row));
+    setRows((current) => current.map((row) => row.id === id ? {
+      ...row,
+      status: next,
+      calledAt: next === "호출" ? new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) : undefined,
+    } : row));
     setMessage(`예시 예약 ${id}번을 ${next} 상태로 변경했습니다.${next === "호출" ? " 실제 연락은 발송되지 않습니다." : ""}`);
   }
 
   function toggleDemo() {
     setDemo(!demo);
-    setRows(demo ? [] : examples.map(row => ({ ...row })));
+    setRows(demo ? [] : examples.map((row) => ({ ...row })));
     setStatus("전체");
     setSection("전체");
     setQuery("");
@@ -55,11 +72,14 @@ export default function ReservationAdmin() {
 
         <section className="mt-10" aria-label="섹션별 대기 현황">
           <div className="grid gap-4 sm:grid-cols-2">
-            {(["자율", "공통"] as const).map(value => (
+            {(["자율", "공통"] as const).map((value) => (
               <div key={value} className="rounded-xl border border-neutral-200 p-5">
                 <h2 className="text-sm font-medium text-neutral-500">{value} 섹션</h2>
-                <p className="mt-3 text-3xl font-bold">{demo ? rows.filter(row => row.section === value && row.status === "대기").length : "—"} <span className="text-sm font-normal text-neutral-500">팀 대기</span></p>
-                <p className="mt-2 text-sm text-neutral-500">호출 {demo ? rows.filter(row => row.section === value && row.status === "호출").length : "—"}팀</p>
+                <p className="mt-3 text-3xl font-bold">
+                  {demo ? rows.filter((row) => row.section === value && row.status === "대기").length : "—"}
+                  <span className="ml-2 text-sm font-normal text-neutral-500">팀 대기</span>
+                </p>
+                <p className="mt-2 text-sm text-neutral-500">호출 {demo ? rows.filter((row) => row.section === value && row.status === "호출").length : "—"}팀</p>
               </div>
             ))}
           </div>
@@ -68,37 +88,71 @@ export default function ReservationAdmin() {
         <section className="mt-10" aria-labelledby="list-title">
           <h2 id="list-title" className="text-xl font-bold">예약 목록</h2>
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="섹션 필터">
-            {["전체", "자율", "공통"].map(value => <button key={value} aria-pressed={section === value} onClick={() => setSection(value)} className={`rounded-lg border px-4 py-2 text-sm font-medium ${section === value ? "border-black bg-black text-white" : "border-neutral-200 hover:bg-neutral-50"}`}>{value === "전체" ? "전체 섹션" : `${value} 섹션`}</button>)}
+            {["전체", "자율", "공통"].map((value) => (
+              <button key={value} aria-pressed={section === value} onClick={() => setSection(value)} className={`rounded-lg border px-4 py-2 text-sm font-medium ${section === value ? "border-black bg-black text-white" : "border-neutral-200"}`}>
+                {value === "전체" ? "전체 섹션" : `${value} 섹션`}
+              </button>
+            ))}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <label className="sr-only" htmlFor="reservation-status">예약 상태</label>
+            <label htmlFor="reservation-status" className="sr-only">예약 상태</label>
             <select id="reservation-status" value={status} onChange={event => setStatus(event.target.value)} className="rounded-lg border border-neutral-300 bg-white p-3 text-sm focus-visible:outline-2 focus-visible:outline-black">
-              {["전체", "대기", "호출", "완료", "취소"].map(value => <option key={value} value={value}>{value === "전체" ? "모든 상태" : value}</option>)}
+              {["전체", "대기", "호출", "완료", "취소"].map((value) => (
+                <option key={value} value={value}>{value === "전체" ? "모든 상태" : value}</option>
+              ))}
             </select>
-            <label className="sr-only" htmlFor="reservation-search">이름, 학번 또는 예약 번호 검색</label>
+            <label htmlFor="reservation-search" className="sr-only">이름, 학번 또는 예약 번호 검색</label>
             <input id="reservation-search" type="search" placeholder="이름 · 학번 · 예약 번호" value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-neutral-300 p-3 text-sm focus-visible:outline-2 focus-visible:outline-black" />
           </div>
 
           <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
             <table className="w-full min-w-[720px] text-left text-sm">
               <caption className="sr-only">예약 목록{demo ? " (예시)" : ""}</caption>
-              <thead className="border-b border-neutral-200 bg-neutral-50 text-neutral-500"><tr>{["번호", "섹션", "예약자", "연락처", "인원", "상태", "관리"].map(value => <th scope="col" key={value} className="p-4 font-medium">{value}</th>)}</tr></thead>
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-neutral-500">
+                <tr>
+                  {["번호", "섹션", "예약자", "연락처", "인원", "상태", "관리"].map((value) => (
+                    <th key={value} scope="col" className="p-4 font-medium">{value}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody className="divide-y divide-neutral-200">
-                {filtered.map(row => (
+                {filtered.map((row) => (
                   <tr key={row.id}>
-                    <td className="p-4">{String(row.id).padStart(3, "0")}</td><td className="p-4">{row.section}</td>
-                    <td className="p-4">{row.name}<span className="mt-1 block text-xs text-neutral-500">{row.studentId}</span></td>
-                    <td className="p-4 text-neutral-500">예시 · 연락처 없음</td><td className="p-4">{row.people}명</td>
-                    <td className="p-4">{row.status}{row.calledAt && <span className="mt-1 block text-xs text-neutral-500">{row.calledAt}</span>}</td>
-                    <td className="p-4"><div className="flex gap-2 whitespace-nowrap">
-                      {row.status === "대기" && <button onClick={() => update(row.id, "호출")} aria-label={`${row.id}번 호출`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">호출</button>}
-                      {row.status === "호출" && <button onClick={() => update(row.id, "완료")} aria-label={`${row.id}번 완료`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">완료</button>}
-                      {(row.status === "대기" || row.status === "호출") && <button onClick={() => update(row.id, "취소")} aria-label={`${row.id}번 취소`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">취소</button>}
-                      {(row.status === "완료" || row.status === "취소") && <button onClick={() => update(row.id, "대기")} aria-label={`${row.id}번 대기로 복원`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">대기로 복원</button>}
-                    </div></td>
+                    <td className="p-4">{String(row.id).padStart(3, "0")}</td>
+                    <td className="p-4">{row.section}</td>
+                    <td className="p-4">
+                      {row.name}
+                      <span className="mt-1 block text-xs text-neutral-500">{row.studentId}</span>
+                    </td>
+                    <td className="p-4 text-neutral-500">예시 · 연락처 없음</td>
+                    <td className="p-4">{row.people}명</td>
+                    <td className="p-4">
+                      {row.status}
+                      {row.calledAt && <span className="mt-1 block text-xs text-neutral-500">{row.calledAt}</span>}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex gap-2 whitespace-nowrap">
+                        {row.status === "대기" && (
+                          <button onClick={() => update(row.id, "호출")} aria-label={`${row.id}번 호출`} className="rounded-lg border border-neutral-300 px-3 py-2">호출</button>
+                        )}
+                        {row.status === "호출" && (
+                          <button onClick={() => update(row.id, "완료")} aria-label={`${row.id}번 완료`} className="rounded-lg border border-neutral-300 px-3 py-2">완료</button>
+                        )}
+                        {(row.status === "대기" || row.status === "호출") && (
+                          <button onClick={() => update(row.id, "취소")} aria-label={`${row.id}번 취소`} className="rounded-lg border border-neutral-300 px-3 py-2">취소</button>
+                        )}
+                        {(row.status === "완료" || row.status === "취소") && (
+                          <button onClick={() => update(row.id, "대기")} aria-label={`${row.id}번 대기로 복원`} className="rounded-lg border border-neutral-300 px-3 py-2">대기로 복원</button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-neutral-500">{demo ? "조건에 맞는 예약이 없습니다." : "표시할 예약이 없습니다."}</td></tr>}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-12 text-center text-neutral-500">{demo ? "조건에 맞는 예약이 없습니다." : "표시할 예약이 없습니다."}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
