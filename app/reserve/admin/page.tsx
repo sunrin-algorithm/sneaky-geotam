@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import styles from "./admin.module.css";
+import Header from "@/components/Header";
 
 type Status = "대기" | "호출" | "완료" | "취소";
 type Reservation = { id: number; section: "자율" | "공통"; name: string; studentId: string; people: number; status: Status; calledAt?: string };
@@ -35,22 +35,77 @@ export default function ReservationAdmin() {
     setMessage("");
   }
 
-  return <div className={styles.page}>
-    <header className={styles.header}><span><strong>LIE DETECTOR</strong><span className={styles.adminLabel}>예약 관리</span></span><Link href="/reserve">예약 페이지 ↗</Link></header>
-    <main className={styles.main}>
-      <div className={styles.title}><div><h1>예약 관리</h1><p>대기 중인 팀과 진행 상태를 확인합니다.</p></div><button onClick={toggleDemo}>{demo ? "예시 닫기" : "예시로 살펴보기"}</button></div>
-      <p className={styles.preview}>{demo ? "예시 데이터입니다. 변경 사항은 새로고침하면 초기화됩니다." : "예약 서버 연결 전입니다. 실제 예약은 표시되지 않습니다."}</p>
-      <section className={styles.counts} aria-label="섹션별 대기 현황">{["자율", "공통"].map(value => <div key={value}><h2>{value} 섹션</h2><p><strong>{demo ? rows.filter(row => row.section === value && row.status === "대기").length : "—"}</strong> 팀 대기 <span>호출 {demo ? rows.filter(row => row.section === value && row.status === "호출").length : "—"}팀</span></p></div>)}</section>
-      <div className={styles.filters}>
-        <div className={styles.tabs} aria-label="섹션 필터">{["전체", "자율", "공통"].map(value => <button key={value} aria-pressed={section === value} onClick={() => setSection(value)}>{value === "전체" ? "전체 섹션" : `${value} 섹션`}</button>)}</div>
-        <div className={styles.search}><label><span className={styles.srOnly}>예약 상태</span><select value={status} onChange={event => setStatus(event.target.value)}>{["전체", "대기", "호출", "완료", "취소"].map(value => <option key={value} value={value}>{value === "전체" ? "모든 상태" : value}</option>)}</select></label><label><span className={styles.srOnly}>이름, 학번 또는 예약 번호 검색</span><input type="search" placeholder="이름 · 학번 · 예약 번호" value={query} onChange={event => setQuery(event.target.value)} /></label></div>
-      </div>
-      <div className={styles.tableWrap}><table><caption className={styles.srOnly}>예약 목록{demo ? " (예시)" : ""}</caption><thead><tr><th scope="col">번호</th><th scope="col">섹션</th><th scope="col">예약자</th><th scope="col">연락처</th><th scope="col">인원</th><th scope="col">상태</th><th scope="col">관리</th></tr></thead><tbody>
-        {filtered.map(row => <tr key={row.id}><td>{String(row.id).padStart(3, "0")}</td><td>{row.section}</td><td>{row.name}<small>{row.studentId}</small></td><td className={styles.muted}>예시 · 연락처 없음</td><td>{row.people}명</td><td><span className={styles.state} data-status={row.status}>{row.status}</span>{row.calledAt && <small>{row.calledAt}</small>}</td><td><div className={styles.actions}>{row.status === "대기" && <button onClick={() => update(row.id, "호출")} aria-label={`${row.id}번 호출`}>호출</button>}{row.status === "호출" && <button onClick={() => update(row.id, "완료")} aria-label={`${row.id}번 완료`}>완료</button>}{(row.status === "대기" || row.status === "호출") && <button onClick={() => update(row.id, "취소")} aria-label={`${row.id}번 취소`}>취소</button>}{(row.status === "완료" || row.status === "취소") && <button onClick={() => update(row.id, "대기")} aria-label={`${row.id}번 대기로 복원`}>대기로 복원</button>}</div></td></tr>)}
-        {filtered.length === 0 && <tr><td colSpan={7} className={styles.empty}>{demo ? "조건에 맞는 예약이 없습니다." : "표시할 예약이 없습니다."}</td></tr>}
-      </tbody></table></div>
-      <p className={styles.result} role="status">{message || (demo ? `예시 예약 ${filtered.length}건` : "")}</p>
-      <p className={styles.note}>연락 후 5분 이내에 도착하지 않은 팀은 취소 처리합니다. 호출 상태 변경은 전화나 문자를 발송하지 않습니다.</p>
-    </main>
-  </div>;
+  return (
+    <>
+      <Header />
+      <main className="mx-auto max-w-5xl px-5 py-10">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">예약 관리</h1>
+            <p className="mt-2 text-neutral-500">섹션별 대기 인원과 예약 상태를 확인합니다.</p>
+          </div>
+          <Link href="/reserve" className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50">예약 페이지</Link>
+        </div>
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
+          <p className="text-neutral-600">{demo ? "예시 데이터입니다. 변경 사항은 저장되지 않습니다." : "예약 서버 연결 전입니다. 실제 예약은 표시되지 않습니다."}</p>
+          <button onClick={toggleDemo} className="rounded-lg border border-neutral-300 bg-white px-4 py-2 font-medium hover:bg-neutral-100">{demo ? "예시 닫기" : "예시로 살펴보기"}</button>
+        </div>
+
+        <section className="mt-10" aria-label="섹션별 대기 현황">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(["자율", "공통"] as const).map(value => (
+              <div key={value} className="rounded-xl border border-neutral-200 p-5">
+                <h2 className="text-sm font-medium text-neutral-500">{value} 섹션</h2>
+                <p className="mt-3 text-3xl font-bold">{demo ? rows.filter(row => row.section === value && row.status === "대기").length : "—"} <span className="text-sm font-normal text-neutral-500">팀 대기</span></p>
+                <p className="mt-2 text-sm text-neutral-500">호출 {demo ? rows.filter(row => row.section === value && row.status === "호출").length : "—"}팀</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="list-title">
+          <h2 id="list-title" className="text-xl font-bold">예약 목록</h2>
+          <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="섹션 필터">
+            {["전체", "자율", "공통"].map(value => <button key={value} aria-pressed={section === value} onClick={() => setSection(value)} className={`rounded-lg border px-4 py-2 text-sm font-medium ${section === value ? "border-black bg-black text-white" : "border-neutral-200 hover:bg-neutral-50"}`}>{value === "전체" ? "전체 섹션" : `${value} 섹션`}</button>)}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <label className="sr-only" htmlFor="reservation-status">예약 상태</label>
+            <select id="reservation-status" value={status} onChange={event => setStatus(event.target.value)} className="rounded-lg border border-neutral-300 bg-white p-3 text-sm focus-visible:outline-2 focus-visible:outline-black">
+              {["전체", "대기", "호출", "완료", "취소"].map(value => <option key={value} value={value}>{value === "전체" ? "모든 상태" : value}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="reservation-search">이름, 학번 또는 예약 번호 검색</label>
+            <input id="reservation-search" type="search" placeholder="이름 · 학번 · 예약 번호" value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-neutral-300 p-3 text-sm focus-visible:outline-2 focus-visible:outline-black" />
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <caption className="sr-only">예약 목록{demo ? " (예시)" : ""}</caption>
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-neutral-500"><tr>{["번호", "섹션", "예약자", "연락처", "인원", "상태", "관리"].map(value => <th scope="col" key={value} className="p-4 font-medium">{value}</th>)}</tr></thead>
+              <tbody className="divide-y divide-neutral-200">
+                {filtered.map(row => (
+                  <tr key={row.id}>
+                    <td className="p-4">{String(row.id).padStart(3, "0")}</td><td className="p-4">{row.section}</td>
+                    <td className="p-4">{row.name}<span className="mt-1 block text-xs text-neutral-500">{row.studentId}</span></td>
+                    <td className="p-4 text-neutral-500">예시 · 연락처 없음</td><td className="p-4">{row.people}명</td>
+                    <td className="p-4">{row.status}{row.calledAt && <span className="mt-1 block text-xs text-neutral-500">{row.calledAt}</span>}</td>
+                    <td className="p-4"><div className="flex gap-2 whitespace-nowrap">
+                      {row.status === "대기" && <button onClick={() => update(row.id, "호출")} aria-label={`${row.id}번 호출`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">호출</button>}
+                      {row.status === "호출" && <button onClick={() => update(row.id, "완료")} aria-label={`${row.id}번 완료`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">완료</button>}
+                      {(row.status === "대기" || row.status === "호출") && <button onClick={() => update(row.id, "취소")} aria-label={`${row.id}번 취소`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">취소</button>}
+                      {(row.status === "완료" || row.status === "취소") && <button onClick={() => update(row.id, "대기")} aria-label={`${row.id}번 대기로 복원`} className="rounded-lg border border-neutral-300 px-3 py-2 hover:bg-neutral-50">대기로 복원</button>}
+                    </div></td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-neutral-500">{demo ? "조건에 맞는 예약이 없습니다." : "표시할 예약이 없습니다."}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 min-h-5 text-sm text-neutral-600" role="status">{message || (demo ? `예시 예약 ${filtered.length}건` : "")}</p>
+          <p className="mt-5 text-sm leading-6 text-neutral-500">연락 후 5분 이내에 도착하지 않은 팀은 취소 처리합니다. 호출 상태 변경은 전화나 문자를 발송하지 않습니다.</p>
+        </section>
+      </main>
+    </>
+  );
 }
