@@ -1,0 +1,383 @@
+$content = Get-Content lib/storage.ts -Raw -Encoding UTF8
+$content = $content -replace 'recalculateAll\(\): Promise<void>;', "recalculateAll(): Promise<void>;`n    renameParticipant(participantId: string, oldName: string, newName: string, actorId?: string): Promise<void>;"
+Set-Content lib/storage.ts $content -Encoding UTF8
+
+
+---
+
+$content = Get-Content lib/storage.ts -Raw -Encoding UTF8
+$replacement = @"
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = `"admin`"): Promise<void> {
+    const sessions = await this.getAll();
+    // Find the latest session to update its updatedAt and name, so aggregation picks it up
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== `"retracted`");
+    if (activeLogs.length > 0) {
+      // Find the log with the latest updatedAt or createdAt
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, `"renameParticipant`", actorId);
+      }
+    }
+    await this.appendAuditLog({
+      action: `"participant.rename`",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async recalculateAll(): Promise<void> {
+"@
+$content = $content -replace '  async recalculateAll\(\): Promise<void> \{', $replacement
+Set-Content lib/storage.ts $content -Encoding UTF8
+
+
+---
+
+$content = Get-Content lib/storage.ts -Raw -Encoding UTF8
+$replacement = @"
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = `"admin_firebase`"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== `"retracted`");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, `"renameParticipant`", actorId);
+      }
+    }
+    const { collection, addDoc, getFirestore } = await import(`"firebase/firestore`");
+    const d = getFirestore();
+    const audit: AuditLog = {
+      id: crypto.randomUUID(),
+      action: `"participant.rename`",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    };
+    await addDoc(collection(d, `"audit_logs`"), audit);
+  }
+
+  async recalculateAll(): Promise<void> {
+"@
+# Replace ONLY in FirebaseInspectionRepository (the second instance of `async recalculateAll(): Promise<void> {` if any)
+$content = $content -replace '(?s)export class FirebaseInspectionRepository.*?async recalculateAll\(\): Promise<void> \{', "`$&" -replace 'async recalculateAll\(\): Promise<void> \{', $replacement
+Set-Content lib/storage.ts $content -Encoding UTF8
+
+
+---
+
+$content = Get-Content lib/storage.ts -Raw -Encoding UTF8
+$content = $content -replace 'export const CURRENT_STORAGE_RESET_VERSION = "reset_\d+_\d+";', 'export const CURRENT_STORAGE_RESET_VERSION = "reset_20261001_035700";'
+Set-Content lib/storage.ts $content -Encoding UTF8
+
+
+---
+
+$code = @"
+import * as fs from 'fs';
+
+let content = fs.readFileSync('lib/storage.ts', 'utf8');
+
+content = content.replace(
+  'recalculateAll(): Promise<void>;',
+  'recalculateAll(): Promise<void>;\n  renameParticipant(participantId: string, oldName: string, newName: string, actorId?: string): Promise<void>;'
+);
+
+const localImpl = `
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = "admin"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== "retracted");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, "renameParticipant", actorId);
+      }
+    }
+    await this.appendAuditLog({
+      action: "participant.rename",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async recalculateAll(): Promise<void> {
+`;
+
+const fbImpl = `
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = "admin_firebase"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== "retracted");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, "renameParticipant", actorId);
+      }
+    }
+    const { collection, addDoc, getFirestore } = await import("firebase/firestore");
+    const d = getFirestore();
+    const audit = {
+      id: crypto.randomUUID(),
+      action: "participant.rename",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    };
+    await addDoc(collection(d, "audit_logs"), audit);
+  }
+
+  async recalculateAll(): Promise<void> {
+`;
+
+// There are two 'async recalculateAll(): Promise<void> {'
+// First one is in LocalInspectionRepository
+content = content.replace('  async recalculateAll(): Promise<void> {', localImpl);
+// Second one is in FirebaseInspectionRepository
+content = content.replace('  async recalculateAll(): Promise<void> {', fbImpl);
+
+fs.writeFileSync('lib/storage.ts', content, 'utf8');
+"@
+Set-Content patch.js $code -Encoding UTF8
+node patch.js
+
+
+---
+
+$code = @'
+import * as fs from 'fs';
+
+let content = fs.readFileSync('lib/storage.ts', 'utf8');
+
+content = content.replace(
+  'recalculateAll(): Promise<void>;',
+  'recalculateAll(): Promise<void>;\n  renameParticipant(participantId: string, oldName: string, newName: string, actorId?: string): Promise<void>;'
+);
+
+const localImpl = `
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = "admin"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== "retracted");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, "renameParticipant", actorId);
+      }
+    }
+    await this.appendAuditLog({
+      action: "participant.rename",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async recalculateAll(): Promise<void> {
+`;
+
+const fbImpl = `
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = "admin_firebase"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== "retracted");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, "renameParticipant", actorId);
+      }
+    }
+    const { collection, addDoc, getFirestore } = await import("firebase/firestore");
+    const d = getFirestore();
+    const audit = {
+      id: crypto.randomUUID(),
+      action: "participant.rename",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    };
+    await addDoc(collection(d, "audit_logs"), audit as any);
+  }
+
+  async recalculateAll(): Promise<void> {
+`;
+
+content = content.replace('  async recalculateAll(): Promise<void> {', localImpl);
+content = content.replace('  async recalculateAll(): Promise<void> {', fbImpl);
+
+fs.writeFileSync('lib/storage.ts', content, 'utf8');
+'@
+Set-Content patch.js $code -Encoding UTF8
+node patch.js
+
+
+---
+
+$code = @'
+import * as fs from 'fs';
+let content = fs.readFileSync('lib/storage.ts', 'utf8');
+
+// interface
+content = content.replace(
+  'recalculateAll(): Promise<void>;',
+  'renameParticipant(participantId: string, oldName: string, newName: string, actorId?: string): Promise<void>;\n    recalculateAll(): Promise<void>;'
+);
+
+const localImpl = `
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = "admin"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== "retracted");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, "renameParticipant", actorId);
+      }
+    }
+    await this.appendAuditLog({
+      action: "participant.rename",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  async recalculateAll(): Promise<void> {`;
+
+const fbImpl = `
+  async renameParticipant(participantId: string, oldName: string, newName: string, actorId: string = "admin_firebase"): Promise<void> {
+    const sessions = await this.getAll();
+    const activeLogs = sessions.filter((s) => s.participantId === participantId && s.status !== "retracted");
+    if (activeLogs.length > 0) {
+      const latestLog = activeLogs.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }).pop();
+      if (latestLog) {
+        await this.update(latestLog.id, { participantName: newName }, "renameParticipant", actorId);
+      }
+    }
+    const { collection, addDoc, getFirestore } = await import("firebase/firestore");
+    const d = getFirestore();
+    const audit = {
+      id: crypto.randomUUID(),
+      action: "participant.rename",
+      targetId: participantId,
+      beforeVersion: 1,
+      afterVersion: 2,
+      changes: { before: oldName, after: newName },
+      actorId,
+      timestamp: new Date().toISOString(),
+    };
+    await addDoc(collection(d, "audit_logs"), audit as any);
+  }
+
+  async recalculateAll(): Promise<void> {`;
+
+let parts = content.split('  async recalculateAll(): Promise<void> {');
+if (parts.length === 3) {
+  content = parts[0] + localImpl + parts[1] + fbImpl + parts[2];
+}
+
+content = content.replace('export const CURRENT_STORAGE_RESET_VERSION = "reset_20261001_033500";', 'export const CURRENT_STORAGE_RESET_VERSION = "reset_20261001_040000";');
+
+fs.writeFileSync('lib/storage.ts', content, 'utf8');
+'@
+Set-Content patch4.js $code -Encoding UTF8
+node patch4.js
+
+
+---
+
+$content = Get-Content lib/storage.ts -Raw -Encoding UTF8
+$content = $content -replace 'import \{ Question, RecordItem \} from "./types";', 'import { Question, RecordItem, Reservation } from "./types";'
+Set-Content lib/storage.ts $content -Encoding UTF8
+
+
+---
+
+$code = @'
+import json
+import re
+
+transcript = r"C:\Users\diamo\.gemini\antigravity-cli\brain\fe49e66e-e795-46e7-a547-d0e8eebe72be\.system_generated\logs\transcript_full.jsonl"
+edits = []
+storage_content = ""
+
+with open(transcript, 'r', encoding='utf-8') as f:
+    for line in f:
+        try:
+            data = json.loads(line)
+            if "tool_calls" in data:
+                for tc in data["tool_calls"]:
+                    name = tc.get("name")
+                    args = tc.get("args", {})
+                    
+                    if name == "write_to_file":
+                        target = args.get("TargetFile", "")
+                        if "storage.ts" in target:
+                            storage_content = args.get("CodeContent", "")
+                    elif name == "replace_file_content":
+                        target = args.get("TargetFile", "")
+                        if "storage.ts" in target:
+                            # Not easy to apply patch, we'll just track
+                            pass
+                    elif name == "run_command":
+                        cmd = args.get("CommandLine", "")
+                        if "Set-Content" in cmd and "storage.ts" in cmd:
+                            edits.append(cmd)
+        except Exception as e:
+            pass
+            
+with open("edits.txt", "w", encoding="utf-8") as out:
+    out.write("\n\n---\n\n".join(edits))
+'@
+Set-Content parse.py $code -Encoding UTF8
+python parse.py
+Get-Content edits.txt | Select-Object -First 30
