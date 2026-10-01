@@ -244,11 +244,19 @@ function AdminPageContent() {
   const [linkedCustomAnswer, setLinkedCustomAnswer] = useState<Answer | "">("");
   const [linkedCustomResult, setLinkedCustomResult] = useState<DetectionResult | "">("");
 
-  // [당첨 효과 오버레이] (전체 참: 도끼 당첨! / 전체 거짓: 피노키오 코 당첨! 2초 페이드아웃)
-  const [rewardOverlay, setRewardOverlay] = useState<{
+  // [당첨 효과 Alert] (전체 참: 초록 도끼 당첨! / 전체 거짓: 빨강 피노키오 코 당첨!)
+  const [rewardAlert, setRewardAlert] = useState<{
     type: "truth" | "lie";
-    fading: boolean;
   } | null>(null);
+
+  // 4초 후 Alert 자동 닫힘
+  useEffect(() => {
+    if (!rewardAlert) return;
+    const timer = setTimeout(() => {
+      setRewardAlert(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [rewardAlert]);
 
   // ==========================================
   // [자율 질문 검사] 상태
@@ -510,32 +518,19 @@ function AdminPageContent() {
       refetchInspections();
       refetchAuditLogs();
 
-      // 거탐 판별이 전체 참 / 전체 거짓일 때 당첨 이펙트 연출 (2초 페이드아웃)
+      // 거탐 판별이 전체 참 / 전체 거짓일 때 당첨 Alert 연출
       const targetRecords = linkedCustomRecords.length > 0 ? linkedCustomRecords : commonRecords;
       const isAllTruth = targetRecords.length > 0 && targetRecords.every((r) => r.result === "truth");
       const isAllLie = targetRecords.length > 0 && targetRecords.every((r) => r.result === "lie");
 
       if (isAllTruth) {
-        setRewardOverlay({ type: "truth", fading: false });
-        setTimeout(() => {
-          setRewardOverlay({ type: "truth", fading: true });
-        }, 1500);
-        setTimeout(() => {
-          setRewardOverlay(null);
-          setCommonStep("done");
-        }, 2000);
+        setRewardAlert({ type: "truth" });
       } else if (isAllLie) {
-        setRewardOverlay({ type: "lie", fading: false });
-        setTimeout(() => {
-          setRewardOverlay({ type: "lie", fading: true });
-        }, 1500);
-        setTimeout(() => {
-          setRewardOverlay(null);
-          setCommonStep("done");
-        }, 2000);
+        setRewardAlert({ type: "lie" });
       } else {
-        setCommonStep("done");
+        setRewardAlert(null);
       }
+      setCommonStep("done");
     } catch (e) {
       console.error(e);
       alert("검사 기록 저장에 실패했습니다. 다시 시도해 주세요.");
@@ -758,25 +753,35 @@ function AdminPageContent() {
 
   return (
     <AdminAuthGuard>
-      {/* 당첨 효과 풀스크린 오버레이 (초록 도끼 당첨! / 빨강 피노키오 코 당첨! 2초 페이드아웃) */}
-      {rewardOverlay && (
-        <div
-          className={`fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500 ${
-            rewardOverlay.type === "truth" ? "bg-emerald-600" : "bg-rose-600"
-          } ${rewardOverlay.fading ? "opacity-0 pointer-events-none" : "opacity-100"}`}
-        >
-          <div className="text-center space-y-4 animate-in zoom-in-95 duration-300">
-            <span className="text-7xl sm:text-8xl block select-none">
-              {rewardOverlay.type === "truth" ? "🪓" : "🤥"}
-            </span>
-            <h2 className="text-4xl sm:text-6xl font-black tracking-tight drop-shadow-md">
-              {rewardOverlay.type === "truth" ? "도끼 당첨!" : "피노키오 코 당첨!"}
-            </h2>
-            <p className="text-lg sm:text-xl font-medium text-white/90">
-              {rewardOverlay.type === "truth"
-                ? "모든 판별 결과가 '진실'입니다!"
-                : "모든 판별 결과가 '거짓'입니다!"}
-            </p>
+      {/* 당첨 효과 플로팅 Alert 배너 (초록 도끼 당첨! / 빨강 피노키오 코 당첨!) */}
+      {rewardAlert && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-in slide-in-from-top-4 duration-300">
+          <div
+            className={`flex items-center justify-between gap-4 rounded-2xl p-4 text-white shadow-2xl border border-white/20 ${
+              rewardAlert.type === "truth" ? "bg-emerald-600" : "bg-rose-600"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl select-none">
+                {rewardAlert.type === "truth" ? "🪓" : "🤥"}
+              </span>
+              <div>
+                <p className="text-lg font-black tracking-tight">
+                  {rewardAlert.type === "truth" ? "도끼 당첨!" : "피노키오 코 당첨!"}
+                </p>
+                <p className="text-xs font-medium text-white/90">
+                  {rewardAlert.type === "truth"
+                    ? "모든 판별 결과가 '진실'입니다!"
+                    : "모든 판별 결과가 '거짓'입니다!"}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setRewardAlert(null)}
+              className="rounded-lg bg-black/20 px-2.5 py-1 text-xs font-bold hover:bg-black/30 transition text-white"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
@@ -957,138 +962,116 @@ function AdminPageContent() {
         {/* ------------------------------------------ */}
         {/* 새 검사 등록 및 최근 검사 정보 그리드       */}
         {/* ------------------------------------------ */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          {/* 새 검사 등록 섹션 (2열) */}
-          <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6 lg:col-span-2 flex flex-col justify-between">
+        {/* ------------------------------------------ */}
+        {/* 새 검사 등록 섹션                         */}
+        {/* ------------------------------------------ */}
+        <section className="mt-8 rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* 좌측: 타이틀 및 안내 문구 */}
             <div>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold">새 검사 기록 시작</h2>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    원하는 검사 방식을 선택하여 기록을 시작하세요.
-                  </p>
-                </div>
-                {inspectionMode !== "none" && (
-                  <button
-                    onClick={() => {
-                      if (confirm("현재 진행 중인 검사 화면을 닫으시겠습니까?")) {
-                        setInspectionMode("none");
-                      }
-                    }}
-                    className="text-xs text-neutral-500 underline underline-offset-4"
-                  >
-                    닫기
-                  </button>
-                )}
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <button
-                  onClick={() => {
-                    setInspectionMode("common");
-                    setCommonStep("init");
-                    setCommonParticipant("");
-                    setCommonParticipantId("");
-                  }}
-                  className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
-                    inspectionMode === "common"
-                      ? "border-black bg-black text-white"
-                      : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
-                  }`}
-                >
-                  <span className="text-base font-bold">공통 질문 검사 (5문항)</span>
-                  <span
-                    className={`mt-1 block text-xs ${
-                      inspectionMode === "common" ? "text-white/80" : "text-neutral-600"
-                    }`}
-                  >
-                    사전 선정된 5개 질문 후 개별 자율 섹션으로 이어집니다.
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setInspectionMode("custom");
-                    setCustomStep("running");
-                    setCurrentGroupId(crypto.randomUUID());
-                  }}
-                  className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
-                    inspectionMode === "custom"
-                      ? "border-black bg-black text-white"
-                      : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
-                  }`}
-                >
-                  <span className="text-base font-bold">자율 질문 검사 (최대 10개)</span>
-                  <span
-                    className={`mt-1 block text-xs ${
-                      inspectionMode === "custom" ? "text-white/80" : "text-neutral-600"
-                    }`}
-                  >
-                    직접 질문을 입력하며 여러 참가자를 연속으로 기록합니다.
-                  </span>
-                </button>
-              </div>
+              <h2 className="text-xl font-bold">새 검사 기록 시작</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                원하는 검사 방식을 선택하여 기록을 시작하세요.
+              </p>
             </div>
-          </section>
 
-          {/* 최근 검사 정보 요약 박스 (1열) */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-                <h3 className="text-base font-bold text-neutral-900">최근 검사 정보</h3>
-                <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
-              </div>
-
-              {latestInspection ? (
-                <div className="mt-4 space-y-3.5">
-                  <div>
-                    <span className="text-xs font-semibold text-neutral-400">참가자 이름</span>
-                    <p className="text-lg font-bold text-neutral-900">{latestInspection.participantName}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-neutral-400">검사 유형</span>
-                    <div className="mt-1">
-                      <span
-                        className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
-                          latestInspection.type === "common"
-                            ? "border border-blue-200 bg-blue-50 text-blue-700"
-                            : "border border-purple-200 bg-purple-50 text-purple-700"
-                        }`}
-                      >
-                        {latestInspection.type === "common" ? "공통 질문" : "자율 질문"}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-neutral-400">기록 시각</span>
-                    <p className="text-sm font-medium text-neutral-700">
+            {/* 우측: 텍스트와 동등한 Y 위치의 일자형 최근 검사 정보 박스 */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-3.5 py-2 text-xs shadow-2xs">
+                <span className="flex items-center gap-1.5 font-bold text-neutral-700">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                  <span>최근 검사:</span>
+                </span>
+                {latestInspection ? (
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-neutral-900">{latestInspection.participantName}</span>
+                    <span className="text-neutral-300">/</span>
+                    <span className="text-neutral-600">
                       {new Date(latestInspection.createdAt).toLocaleString("ko-KR", {
-                        month: "short",
+                        month: "numeric",
                         day: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
-                        second: "2-digit",
                       })}
-                    </p>
+                    </span>
+                    <span className="text-neutral-300">/</span>
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-bold ${
+                        latestInspection.type === "common"
+                          ? "bg-blue-50 text-blue-700 border border-blue-200"
+                          : "bg-purple-50 text-purple-700 border border-purple-200"
+                      }`}
+                    >
+                      {latestInspection.type === "common" ? "공통" : "자율"}
+                    </span>
                   </div>
-                </div>
-              ) : (
-                <div className="mt-8 text-center text-xs text-neutral-400 py-6">
-                  최근 등록된 검사가 없습니다.
-                </div>
+                ) : (
+                  <span className="text-neutral-400">기록 없음</span>
+                )}
+              </div>
+
+              {inspectionMode !== "none" && (
+                <button
+                  onClick={() => {
+                    if (confirm("현재 진행 중인 검사 화면을 닫으시겠습니까?")) {
+                      setInspectionMode("none");
+                    }
+                  }}
+                  className="text-xs text-neutral-500 underline underline-offset-4"
+                >
+                  닫기
+                </button>
               )}
             </div>
+          </div>
 
-            {latestInspection && (
-              <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
-                <span>번호: {latestInspection.number}</span>
-                <Link href="/log" className="font-semibold text-neutral-800 hover:underline">
-                  전체 로그 보기 →
-                </Link>
-              </div>
-            )}
-          </section>
-        </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={() => {
+                setInspectionMode("common");
+                setCommonStep("init");
+                setCommonParticipant("");
+                setCommonParticipantId("");
+              }}
+              className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
+                inspectionMode === "common"
+                  ? "border-black bg-black text-white"
+                  : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
+              }`}
+            >
+              <span className="text-base font-bold">공통 질문 검사 (5문항)</span>
+              <span
+                className={`mt-1 block text-xs ${
+                  inspectionMode === "common" ? "text-white/80" : "text-neutral-600"
+                }`}
+              >
+                사전 선정된 5개 질문 후 개별 자율 섹션으로 이어집니다.
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setInspectionMode("custom");
+                setCustomStep("running");
+                setCurrentGroupId(crypto.randomUUID());
+              }}
+              className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
+                inspectionMode === "custom"
+                  ? "border-black bg-black text-white"
+                  : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
+              }`}
+            >
+              <span className="text-base font-bold">자율 질문 검사 (최대 10개)</span>
+              <span
+                className={`mt-1 block text-xs ${
+                  inspectionMode === "custom" ? "text-white/80" : "text-neutral-600"
+                }`}
+              >
+                직접 질문을 입력하며 여러 참가자를 연속으로 기록합니다.
+              </span>
+            </button>
+          </div>
+        </section>
 
         {/* ==================================================== */}
         {/* [검사 화면] 공통 질문 검사                           */}
