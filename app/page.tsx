@@ -38,7 +38,7 @@ export default function Home() {
               href="/reserve"
               className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
             >
-              {"예약하러가기 ->"}
+              {"예약하러가기 →"}
             </Link>
           </div>
         </div>

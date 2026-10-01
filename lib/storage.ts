@@ -175,7 +175,7 @@ export class FirebaseInspectionRepository implements InspectionRepository {
 
   subscribe(callback: (items: InspectionSession[]) => void): () => void {
     const d = ensureDb();
-    const q = query(collection(d, "inspectionLogs"), orderBy("createdAt", "asc")); 
+    const q = query(collection(d, "inspectionLogs"), orderBy("createdAt", "desc")); 
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map((s) => s.data() as InspectionSession));
     }, (error) => console.error("Inspection sub error", error));

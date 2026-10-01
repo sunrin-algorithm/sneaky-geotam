@@ -38,22 +38,24 @@ export default function LogPage() {
   const [retractingLogId, setRetractingLogId] = useState<string | null>(null);
   const [retractReason, setRetractReason] = useState("");
 
-  // 필터링된 검사 로그 목록
+  // 필터링된 검사 로그 목록 (최신 작성일시 기준 내림차순 정렬)
   const filteredLogs = useMemo(() => {
-    return inspections.filter((log) => {
-      const q = logSearchQuery.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        log.participantName.toLowerCase().includes(q) ||
-        log.number.toLowerCase().includes(q) ||
-        log.id.toLowerCase().includes(q) ||
-        log.operationId.toLowerCase().includes(q);
+    return inspections
+      .filter((log) => {
+        const q = logSearchQuery.trim().toLowerCase();
+        const matchesSearch =
+          !q ||
+          log.participantName.toLowerCase().includes(q) ||
+          log.number.toLowerCase().includes(q) ||
+          log.id.toLowerCase().includes(q) ||
+          log.operationId.toLowerCase().includes(q);
 
-      const matchesType = logTypeFilter === "all" || log.type === logTypeFilter;
-      const matchesStatus = logStatusFilter === "all" || log.status === logStatusFilter;
+        const matchesType = logTypeFilter === "all" || log.type === logTypeFilter;
+        const matchesStatus = logStatusFilter === "all" || log.status === logStatusFilter;
 
-      return matchesSearch && matchesType && matchesStatus;
-    });
+        return matchesSearch && matchesType && matchesStatus;
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [inspections, logSearchQuery, logTypeFilter, logStatusFilter]);
 
   // 예약 관련 감사 로그 및 예약 처리 내역
@@ -87,8 +89,8 @@ export default function LogPage() {
       await inspectionRepo.retract(id, reason.trim());
       setRetractingLogId(null);
       setRetractReason("");
-      refetchInspections();
-      refetchAuditLogs();
+      alert("로그가 성공적으로 취소되었습니다.");
+      window.location.reload();
     } catch (e) {
       console.error(e);
       alert("취소 처리에 실패했습니다.");
@@ -100,8 +102,8 @@ export default function LogPage() {
     if (!confirm("취소된 검사 로그를 다시 복구하시겠습니까?")) return;
     try {
       await inspectionRepo.restore(id, "관리자 복구");
-      refetchInspections();
-      refetchAuditLogs();
+      alert("로그가 성공적으로 복구되었습니다.");
+      window.location.reload();
     } catch (e) {
       console.error(e);
       alert("복구 처리에 실패했습니다.");
@@ -123,9 +125,8 @@ export default function LogPage() {
         changes: { status: "대기" },
         reason: "/log 화면에서 예약 대기로 복구",
       });
-      refetchReservations();
-      refetchAuditLogs();
       alert("예약이 '대기' 상태로 복구되었습니다.");
+      window.location.reload();
     } catch (e) {
       console.error(e);
       alert("예약 복구에 실패했습니다.");
@@ -145,8 +146,8 @@ export default function LogPage() {
         "관리자 질문 및 결과 수정"
       );
       setEditingSession(null);
-      refetchInspections();
-      refetchAuditLogs();
+      alert("로그가 성공적으로 수정되었습니다.");
+      window.location.reload();
     } catch (e) {
       console.error(e);
       alert("로그 수정에 실패했습니다.");
@@ -157,10 +158,10 @@ export default function LogPage() {
   function handleRecalculateAll() {
     const aggregated = aggregateParticipants(inspections, commonQuestions);
     inspectionRepo.recalculateAll();
-    refetchInspections();
     alert(
       `전체 로그 기준 재집계 완료!\n- 총 활성 참가자 수: ${aggregated.length}명\n- 전체 누적 질문 수: ${aggregated.reduce((acc, p) => acc + p.totalQuestions, 0)}건`
     );
+    window.location.reload();
   }
 
   return (

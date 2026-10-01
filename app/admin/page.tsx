@@ -24,7 +24,7 @@ import {
 } from "@/lib/types";
 
 type InspectionMode = "none" | "common" | "custom";
-type CommonStep = "init" | "running" | "confirm" | "done";
+type CommonStep = "init" | "running" | "confirm" | "linked_custom" | "done";
 type CustomStep = "running" | "confirm" | "done";
 
 function generateNumber(): string {
@@ -53,6 +53,14 @@ function AdminPageContent() {
       .filter((r) => r.status === "대기")
       .slice(0, 5);
   }, [reservations]);
+
+  // 가장 최근에 등록된 검사 세션 요약 정보
+  const latestInspection = useMemo(() => {
+    if (!inspections || inspections.length === 0) return null;
+    return [...inspections].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )[0];
+  }, [inspections]);
 
   // 예약 처리 관련 상태
   const [copiedPhoneId, setCopiedPhoneId] = useState<number | null>(null);
@@ -230,6 +238,18 @@ function AdminPageContent() {
   const [commonRecords, setCommonRecords] = useState<QuestionRecord[]>([]);
   const [editingCommonRecordIndex, setEditingCommonRecordIndex] = useState<number | null>(null);
 
+  // [연계 자율 섹션] 상태 (공통 5문항 완료 후 연속 진행, 최대 5문항, 이름 고정)
+  const [linkedCustomRecords, setLinkedCustomRecords] = useState<QuestionRecord[]>([]);
+  const [linkedCustomQuestionInput, setLinkedCustomQuestionInput] = useState("");
+  const [linkedCustomAnswer, setLinkedCustomAnswer] = useState<Answer | "">("");
+  const [linkedCustomResult, setLinkedCustomResult] = useState<DetectionResult | "">("");
+
+  // [당첨 효과 오버레이] (전체 참: 도끼 당첨! / 전체 거짓: 피노키오 코 당첨! 2초 페이드아웃)
+  const [rewardOverlay, setRewardOverlay] = useState<{
+    type: "truth" | "lie";
+    fading: boolean;
+  } | null>(null);
+
   // ==========================================
   // [자율 질문 검사] 상태
   // ==========================================
@@ -340,6 +360,10 @@ function AdminPageContent() {
 
     setCommonCurrentIndex(0);
     setCommonRecords([]);
+    setLinkedCustomRecords([]);
+    setLinkedCustomQuestionInput("");
+    setLinkedCustomAnswer("");
+    setLinkedCustomResult("");
     setCommonAnswer("");
     setCommonResult("");
     setCommonStep("running");
@@ -379,36 +403,147 @@ function AdminPageContent() {
     }
   }
 
-  async function saveFinalCommonInspection() {
-    if (commonRecords.length < 5) return;
+  // 연계 자율 질문 레코드 추가 (최대 5문항)
+  function addLinkedCustomQuestionRecord() {
+    if (linkedCustomRecords.length >= 5) {
+      alert("연계 자율 섹션은 최대 5개 질문까지만 등록 가능합니다.");
+      return;
+    }
+    if (!linkedCustomQuestionInput.trim()) {
+      alert("질문 내용을 입력해 주세요.");
+      return;
+    }
+    if (!linkedCustomAnswer || !linkedCustomResult) {
+      alert("참가자 답변과 거짓말탐지기 판정을 모두 선택해 주세요.");
+      return;
+    }
+
+    const newRecord: QuestionRecord = {
+      id: crypto.randomUUID(),
+      questionType: "custom",
+      question: linkedCustomQuestionInput.trim(),
+      answer: linkedCustomAnswer,
+      result: linkedCustomResult,
+      order: linkedCustomRecords.length + 1,
+    };
+
+    setLinkedCustomRecords([...linkedCustomRecords, newRecord]);
+    setLinkedCustomQuestionInput("");
+    setLinkedCustomAnswer("");
+    setLinkedCustomResult("");
+  }
+
+  // 연계 자율 질문 삭제
+  function removeLinkedCustomQuestionRecord(id: string) {
+    setLinkedCustomRecords((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  // 공통 및 연계 자율 검사 최종 통합 저장 핸들러
+  async function saveFinalLinkedInspection() {
+    if (commonRecords.length < 5) {
+      alert("공통 질문 5개가 모두 완료되어야 저장할 수 있습니다.");
+      return;
+    }
+
     try {
       const opId = crypto.randomUUID();
-      const session: InspectionSession = {
+      const groupId = crypto.randomUUID();
+      const targetPid = commonParticipantId || generateParticipantId();
+      const targetName = commonParticipant.trim();
+      const now = new Date().toISOString();
+
+      const commonSession: InspectionSession = {
         id: crypto.randomUUID(),
         operationId: opId,
         number: generateNumber(),
-        participantId: commonParticipantId || generateParticipantId(),
-        participantName: commonParticipant.trim(),
-        participantGroupId: crypto.randomUUID(),
+        participantId: targetPid,
+        participantName: targetName,
+        participantGroupId: groupId,
         type: "common",
         questions: commonRecords,
         isPublic: true,
         sequence: Date.now(),
         status: "active",
         version: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
 
-      await inspectionRepo.create(session);
+      const sessionsToSave: InspectionSession[] = [commonSession];
+
+      if (linkedCustomRecords.length > 0) {
+        const customSession: InspectionSession = {
+          id: crypto.randomUUID(),
+          operationId: opId,
+          number: generateNumber(),
+          participantId: targetPid,
+          participantName: targetName,
+          participantGroupId: groupId,
+          type: "custom",
+          questions: linkedCustomRecords.map((r, idx) => ({
+            ...r,
+            order: idx + 1,
+          })),
+          isPublic: true,
+          sequence: Date.now() + 1,
+          status: "active",
+          version: 1,
+          createdAt: new Date(Date.now() + 1000).toISOString(),
+          updatedAt: new Date(Date.now() + 1000).toISOString(),
+        };
+        sessionsToSave.push(customSession);
+      }
+
+      for (const session of sessionsToSave) {
+        await inspectionRepo.create(session);
+      }
+
       clearDraft("common");
-      setCommonStep("done");
+
+      setLastUndoOp({
+        opId,
+        title: `${targetName} 검사(공통${linkedCustomRecords.length > 0 ? " + 자율" : ""})`,
+        sessions: sessionsToSave,
+        expireSeconds: 15,
+      });
+
       refetchInspections();
       refetchAuditLogs();
+
+      // 거탐 판별이 전체 참 / 전체 거짓일 때 당첨 이펙트 연출 (2초 페이드아웃)
+      const targetRecords = linkedCustomRecords.length > 0 ? linkedCustomRecords : commonRecords;
+      const isAllTruth = targetRecords.length > 0 && targetRecords.every((r) => r.result === "truth");
+      const isAllLie = targetRecords.length > 0 && targetRecords.every((r) => r.result === "lie");
+
+      if (isAllTruth) {
+        setRewardOverlay({ type: "truth", fading: false });
+        setTimeout(() => {
+          setRewardOverlay({ type: "truth", fading: true });
+        }, 1500);
+        setTimeout(() => {
+          setRewardOverlay(null);
+          setCommonStep("done");
+        }, 2000);
+      } else if (isAllLie) {
+        setRewardOverlay({ type: "lie", fading: false });
+        setTimeout(() => {
+          setRewardOverlay({ type: "lie", fading: true });
+        }, 1500);
+        setTimeout(() => {
+          setRewardOverlay(null);
+          setCommonStep("done");
+        }, 2000);
+      } else {
+        setCommonStep("done");
+      }
     } catch (e) {
       console.error(e);
       alert("검사 기록 저장에 실패했습니다. 다시 시도해 주세요.");
     }
+  }
+
+  async function saveFinalCommonInspection() {
+    return saveFinalLinkedInspection();
   }
 
   // 공통 질문 완료 후 동일한 참가자로 자율 질문 시작 (PROMPT.md 1)
@@ -436,12 +571,17 @@ function AdminPageContent() {
     setCommonParticipant("");
     setCommonParticipantId("");
     setCommonRecords([]);
+    setLinkedCustomRecords([]);
   }
 
   // ==========================================
   // [자율 질문 검사] 핸들러
   // ==========================================
   function addCustomQuestionRecord() {
+    if (customRecords.length >= 10) {
+      alert("자율 검사는 최대 10개 질문까지만 등록할 수 있습니다.");
+      return;
+    }
     if (!customParticipant.trim()) {
       alert("참가자 이름을 입력해 주세요.");
       return;
@@ -618,6 +758,28 @@ function AdminPageContent() {
 
   return (
     <AdminAuthGuard>
+      {/* 당첨 효과 풀스크린 오버레이 (초록 도끼 당첨! / 빨강 피노키오 코 당첨! 2초 페이드아웃) */}
+      {rewardOverlay && (
+        <div
+          className={`fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500 ${
+            rewardOverlay.type === "truth" ? "bg-emerald-600" : "bg-rose-600"
+          } ${rewardOverlay.fading ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        >
+          <div className="text-center space-y-4 animate-in zoom-in-95 duration-300">
+            <span className="text-7xl sm:text-8xl block select-none">
+              {rewardOverlay.type === "truth" ? "🪓" : "🤥"}
+            </span>
+            <h2 className="text-4xl sm:text-6xl font-black tracking-tight drop-shadow-md">
+              {rewardOverlay.type === "truth" ? "도끼 당첨!" : "피노키오 코 당첨!"}
+            </h2>
+            <p className="text-lg sm:text-xl font-medium text-white/90">
+              {rewardOverlay.type === "truth"
+                ? "모든 판별 결과가 '진실'입니다!"
+                : "모든 판별 결과가 '거짓'입니다!"}
+            </p>
+          </div>
+        </div>
+      )}
       <Header />
       <main className="mx-auto max-w-5xl px-5 py-10">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -793,77 +955,140 @@ function AdminPageContent() {
         </section>
 
         {/* ------------------------------------------ */}
-        {/* 새 검사 등록 섹션                         */}
+        {/* 새 검사 등록 및 최근 검사 정보 그리드       */}
         {/* ------------------------------------------ */}
-        <section className="mt-8 rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          {/* 새 검사 등록 섹션 (2열) */}
+          <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6 lg:col-span-2 flex flex-col justify-between">
             <div>
-              <h2 className="text-xl font-bold">새 검사 기록 시작</h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                원하는 검사 방식을 선택하여 기록을 시작하세요.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold">새 검사 기록 시작</h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    원하는 검사 방식을 선택하여 기록을 시작하세요.
+                  </p>
+                </div>
+                {inspectionMode !== "none" && (
+                  <button
+                    onClick={() => {
+                      if (confirm("현재 진행 중인 검사 화면을 닫으시겠습니까?")) {
+                        setInspectionMode("none");
+                      }
+                    }}
+                    className="text-xs text-neutral-500 underline underline-offset-4"
+                  >
+                    닫기
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  onClick={() => {
+                    setInspectionMode("common");
+                    setCommonStep("init");
+                    setCommonParticipant("");
+                    setCommonParticipantId("");
+                  }}
+                  className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
+                    inspectionMode === "common"
+                      ? "border-black bg-black text-white"
+                      : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
+                  }`}
+                >
+                  <span className="text-base font-bold">공통 질문 검사 (5문항)</span>
+                  <span
+                    className={`mt-1 block text-xs ${
+                      inspectionMode === "common" ? "text-white/80" : "text-neutral-600"
+                    }`}
+                  >
+                    사전 선정된 5개 질문 후 개별 자율 섹션으로 이어집니다.
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setInspectionMode("custom");
+                    setCustomStep("running");
+                    setCurrentGroupId(crypto.randomUUID());
+                  }}
+                  className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
+                    inspectionMode === "custom"
+                      ? "border-black bg-black text-white"
+                      : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
+                  }`}
+                >
+                  <span className="text-base font-bold">자율 질문 검사 (최대 10개)</span>
+                  <span
+                    className={`mt-1 block text-xs ${
+                      inspectionMode === "custom" ? "text-white/80" : "text-neutral-600"
+                    }`}
+                  >
+                    직접 질문을 입력하며 여러 참가자를 연속으로 기록합니다.
+                  </span>
+                </button>
+              </div>
             </div>
-            {inspectionMode !== "none" && (
-              <button
-                onClick={() => {
-                  if (confirm("현재 진행 중인 검사 화면을 닫으시겠습니까?")) {
-                    setInspectionMode("none");
-                  }
-                }}
-                className="text-xs text-neutral-500 underline underline-offset-4"
-              >
-                닫기
-              </button>
+          </section>
+
+          {/* 최근 검사 정보 요약 박스 (1열) */}
+          <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+                <h3 className="text-base font-bold text-neutral-900">최근 검사 정보</h3>
+                <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+              </div>
+
+              {latestInspection ? (
+                <div className="mt-4 space-y-3.5">
+                  <div>
+                    <span className="text-xs font-semibold text-neutral-400">참가자 이름</span>
+                    <p className="text-lg font-bold text-neutral-900">{latestInspection.participantName}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-neutral-400">검사 유형</span>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
+                          latestInspection.type === "common"
+                            ? "border border-blue-200 bg-blue-50 text-blue-700"
+                            : "border border-purple-200 bg-purple-50 text-purple-700"
+                        }`}
+                      >
+                        {latestInspection.type === "common" ? "공통 질문" : "자율 질문"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-neutral-400">기록 시각</span>
+                    <p className="text-sm font-medium text-neutral-700">
+                      {new Date(latestInspection.createdAt).toLocaleString("ko-KR", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-8 text-center text-xs text-neutral-400 py-6">
+                  최근 등록된 검사가 없습니다.
+                </div>
+              )}
+            </div>
+
+            {latestInspection && (
+              <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
+                <span>번호: {latestInspection.number}</span>
+                <Link href="/log" className="font-semibold text-neutral-800 hover:underline">
+                  전체 로그 보기 →
+                </Link>
+              </div>
             )}
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button
-              onClick={() => {
-                setInspectionMode("common");
-                setCommonStep("init");
-                setCommonParticipant("");
-                setCommonParticipantId("");
-              }}
-              className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
-                inspectionMode === "common"
-                  ? "border-black bg-black text-white"
-                  : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
-              }`}
-            >
-              <span className="text-base font-bold">공통 질문 검사 (5문항)</span>
-              <span
-                className={`mt-1 block text-xs ${
-                  inspectionMode === "common" ? "text-white/80" : "text-neutral-600"
-                }`}
-              >
-                사전 선정된 5개 질문을 순서대로 진행합니다.
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                setInspectionMode("custom");
-                setCustomStep("running");
-                setCurrentGroupId(crypto.randomUUID());
-              }}
-              className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
-                inspectionMode === "custom"
-                  ? "border-black bg-black text-white"
-                  : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
-              }`}
-            >
-              <span className="text-base font-bold">자율 질문 검사 (연속 기록)</span>
-              <span
-                className={`mt-1 block text-xs ${
-                  inspectionMode === "custom" ? "text-white/80" : "text-neutral-600"
-                }`}
-              >
-                직접 질문을 입력하며 여러 참가자를 연속으로 기록합니다.
-              </span>
-            </button>
-          </div>
-        </section>
+          </section>
+        </div>
 
         {/* ==================================================== */}
         {/* [검사 화면] 공통 질문 검사                           */}
@@ -1173,10 +1398,245 @@ function AdminPageContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={saveFinalCommonInspection}
-                    className="flex-1 rounded-xl bg-black py-3 font-bold text-white hover:bg-neutral-800"
+                    onClick={() => setCommonStep("linked_custom")}
+                    className="flex-1 rounded-xl bg-black py-3 font-bold text-white hover:bg-neutral-800 flex items-center justify-center gap-2"
                   >
-                    최종 저장 및 완료
+                    <span>자율 섹션 시작</span>
+                    <span>→</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 단계 3-2: 연계 개별 자율 섹션 (최대 5문항, 이름 고정) */}
+            {commonStep === "linked_custom" && (
+              <div className="mt-6 space-y-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-white">
+                      자율 섹션
+                    </span>
+                    <span className="text-xs font-semibold text-neutral-400">
+                      최대 5문항 등록 가능
+                    </span>
+                  </div>
+                  <h3 className="mt-2 text-2xl font-bold">개별 자율 질문 등록</h3>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    참가자에게 진행할 개별 맞춤 질문을 최대 5개까지 추가하고 결과를 기록합니다.
+                  </p>
+                </div>
+
+                {/* 참가자 정보 (이름 변경 불가) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div>
+                    <span className="text-xs font-semibold text-neutral-400">참가자 (고정)</span>
+                    <p className="text-lg font-bold text-neutral-900">{commonParticipant}</p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-bold text-neutral-700">
+                    <span>🔒</span>
+                    <span>이름 변경 불가 (공통 섹션 연동)</span>
+                  </span>
+                </div>
+
+                {/* 질문 입력 폼 (최대 5개 미만일 때만 노출) */}
+                {linkedCustomRecords.length < 5 ? (
+                  <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-600">
+                        새 자율 질문 작성 (현재 {linkedCustomRecords.length}/5개)
+                      </span>
+                      <span className="text-xs text-neutral-400">
+                        남은 질문: {5 - linkedCustomRecords.length}개
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-600 mb-1">
+                        질문 내용
+                      </label>
+                      <input
+                        value={linkedCustomQuestionInput}
+                        onChange={(e) => setLinkedCustomQuestionInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && linkedCustomQuestionInput.trim() && linkedCustomAnswer && linkedCustomResult) {
+                            addLinkedCustomQuestionRecord();
+                          }
+                        }}
+                        placeholder="예: 오늘 아침을 든든하게 먹고 왔다"
+                        className="w-full rounded-lg border border-neutral-300 bg-white p-3 outline-none focus:border-black text-sm"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1">참가자 답변</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setLinkedCustomAnswer("yes")}
+                            className={`rounded-lg border p-3 text-sm font-bold transition ${
+                              linkedCustomAnswer === "yes"
+                                ? "border-black bg-black text-white"
+                                : "border-neutral-300 bg-white hover:bg-neutral-50"
+                            }`}
+                          >
+                            예
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLinkedCustomAnswer("no")}
+                            className={`rounded-lg border p-3 text-sm font-bold transition ${
+                              linkedCustomAnswer === "no"
+                                ? "border-black bg-black text-white"
+                                : "border-neutral-300 bg-white hover:bg-neutral-50"
+                            }`}
+                          >
+                            아니오
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1">거짓말탐지기 판정</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setLinkedCustomResult("truth")}
+                            className={`rounded-lg border p-3 text-sm font-bold transition ${
+                              linkedCustomResult === "truth"
+                                ? "border-green-600 bg-green-600 text-white"
+                                : "border-neutral-300 bg-white hover:bg-neutral-50"
+                            }`}
+                          >
+                            진실
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLinkedCustomResult("lie")}
+                            className={`rounded-lg border p-3 text-sm font-bold transition ${
+                              linkedCustomResult === "lie"
+                                ? "border-red-600 bg-red-600 text-white"
+                                : "border-neutral-300 bg-white hover:bg-neutral-50"
+                            }`}
+                          >
+                            거짓
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={addLinkedCustomQuestionRecord}
+                      disabled={!linkedCustomQuestionInput.trim() || !linkedCustomAnswer || !linkedCustomResult}
+                      className="w-full rounded-xl bg-black py-3 text-sm font-bold text-white transition disabled:opacity-30 hover:bg-neutral-800"
+                    >
+                      + 자율 질문 추가 ({linkedCustomRecords.length + 1}/5)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-neutral-300 bg-neutral-100 p-4 text-center">
+                    <p className="text-sm font-bold text-neutral-800">
+                      최대 질문 개수(5개)에 도달했습니다.
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      수정 또는 삭제 후 다시 추가하시거나, 아래의 &apos;최종 저장 및 완료&apos;를 진행해 주세요.
+                    </p>
+                  </div>
+                )}
+
+                {/* 현재까지 등록된 자율 질문 목록 */}
+                <div>
+                  <h4 className="text-sm font-bold text-neutral-800">
+                    등록된 자율 질문 목록 ({linkedCustomRecords.length} / 최대 5개)
+                  </h4>
+                  {linkedCustomRecords.length === 0 ? (
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-400">
+                      아직 등록된 자율 질문이 없습니다. 위 입력창에서 질문을 추가해 주세요.
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {linkedCustomRecords.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-2xs"
+                        >
+                          <div className="flex-1">
+                            <span className="text-xs font-semibold text-neutral-400">
+                              자율 질문 #{idx + 1}
+                            </span>
+                            <p className="mt-0.5 text-base font-medium text-neutral-900 break-words">
+                              {r.question}
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                              <span className="text-neutral-500">답변:</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextAns = r.answer === "yes" ? "no" : "yes";
+                                  setLinkedCustomRecords((prev) =>
+                                    prev.map((item, i) => (i === idx ? { ...item, answer: nextAns } : item))
+                                  );
+                                }}
+                                className={`rounded px-2 py-0.5 font-bold transition ${
+                                  r.answer === "yes"
+                                    ? "bg-neutral-900 text-white"
+                                    : "border border-neutral-300 bg-white text-neutral-800"
+                                }`}
+                              >
+                                {r.answer === "yes" ? "예" : "아니오"}
+                              </button>
+                              <span className="text-neutral-300">|</span>
+                              <span className="text-neutral-500">판정:</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextRes = r.result === "truth" ? "lie" : "truth";
+                                  setLinkedCustomRecords((prev) =>
+                                    prev.map((item, i) => (i === idx ? { ...item, result: nextRes } : item))
+                                  );
+                                }}
+                                className={`rounded px-2 py-0.5 font-bold transition ${
+                                  r.result === "truth"
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-300"
+                                    : "bg-rose-50 text-rose-700 border border-rose-300"
+                                }`}
+                              >
+                                {r.result === "truth" ? "진실" : "거짓"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            <button
+                              type="button"
+                              onClick={() => removeLinkedCustomQuestionRecord(r.id)}
+                              className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 하단 네비게이션 및 최종 저장 */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCommonStep("confirm")}
+                    className="rounded-xl border border-neutral-300 px-5 py-3 font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    ← 공통 질문 확인으로
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveFinalLinkedInspection}
+                    className="flex-1 rounded-xl bg-black py-3 font-bold text-white hover:bg-neutral-800 transition shadow-xs"
+                  >
+                    최종 저장 및 완료 (총 {5 + linkedCustomRecords.length}문항)
                   </button>
                 </div>
               </div>
@@ -1185,16 +1645,22 @@ function AdminPageContent() {
             {/* 단계 4: 완료 */}
             {commonStep === "done" && (
               <div className="mt-6 py-6 text-center">
-                <h3 className="text-xl font-bold">{commonParticipant}님의 공통 검사 완료</h3>
+                <h3 className="text-xl font-bold">{commonParticipant}님의 검사(공통 + 자율) 완료</h3>
                 <p className="mt-2 text-sm text-neutral-500">
-                  다음 진행할 작업을 선택해 주세요.
+                  모든 검사 데이터가 성공적으로 저장되었습니다.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-3">
                   <button
-                    onClick={startCustomWithSameParticipant}
+                    onClick={() => {
+                      setCommonStep("init");
+                      setCommonParticipant("");
+                      setCommonParticipantId("");
+                      setCommonRecords([]);
+                      setLinkedCustomRecords([]);
+                    }}
                     className="rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white hover:bg-neutral-800 shadow-sm transition"
                   >
-                    같은 참가자로 자율 질문 시작하기
+                    새 공통 검사 시작하기
                   </button>
                   <button
                     onClick={() => setInspectionMode("none")}
@@ -1479,6 +1945,7 @@ function AdminPageContent() {
                     type="button"
                     onClick={addCustomQuestionRecord}
                     disabled={
+                      customRecords.length >= 10 ||
                       !customParticipant.trim() ||
                       !customQuestionInput.trim() ||
                       !customAnswer ||
@@ -1486,8 +1953,15 @@ function AdminPageContent() {
                     }
                     className="w-full rounded-xl bg-black py-3.5 font-bold text-white transition disabled:opacity-30 hover:bg-neutral-800"
                   >
-                    + 질문 기록 추가
+                    {customRecords.length >= 10
+                      ? "최대 질문 수 도달 (10/10)"
+                      : `+ 질문 기록 추가 (${customRecords.length}/10)`}
                   </button>
+                  {customRecords.length >= 10 && (
+                    <p className="mt-2 text-center text-xs font-semibold text-rose-600">
+                      * 자율 검사는 최대 10개 질문까지만 등록할 수 있습니다.
+                    </p>
+                  )}
                 </div>
 
                 {/* 현재까지 작성된 기록 목록 */}
