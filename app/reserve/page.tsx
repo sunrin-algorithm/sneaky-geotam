@@ -125,12 +125,6 @@ export default function ReservePage() {
       <main className="mx-auto max-w-5xl px-5 py-12">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>
-          <Link
-            href="/reserve/admin"
-            className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 hover:text-black"
-          >
-            예약 관리자 (/reserve/admin)
-          </Link>
         </div>
 
         {step !== "home" && step !== "done" && (
