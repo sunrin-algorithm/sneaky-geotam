@@ -47,42 +47,36 @@ function AdminPageContent() {
   const { data: reservations } = useLiveReservations();
   const { isClosed: isReservationClosed } = useLiveReservationConfig();
   const [isTogglingReservation, setIsTogglingReservation] = useState(false);
+  const [showReservationPwModal, setShowReservationPwModal] = useState<"close" | "open" | null>(null);
+  const [reservationPwInput, setReservationPwInput] = useState("");
+  const [reservationPwError, setReservationPwError] = useState("");
 
-  const handleToggleReservation = async () => {
-    if (isReservationClosed) {
-      const pw = prompt("예약을 다시 열려면 비밀번호를 입력해 주세요 (gaheeno1):");
-      if (pw === null) return;
-      if (pw !== "gaheeno1") {
-        alert("비밀번호가 올바르지 않습니다.");
-        return;
-      }
-      setIsTogglingReservation(true);
-      try {
-        await setReservationClosed(false);
-        alert("예약이 다시 열렸습니다. 이제 방문자가 예약을 접수할 수 있습니다.");
-      } catch (e) {
-        console.error(e);
-        alert("예약 상태 변경에 실패했습니다.");
-      } finally {
-        setIsTogglingReservation(false);
-      }
-      return;
-    }
+  const handleOpenReservationPwModal = (action: "close" | "open") => {
+    setShowReservationPwModal(action);
+    setReservationPwInput("");
+    setReservationPwError("");
+  };
 
-    const pw = prompt("예약을 닫으려면 비밀번호를 입력해 주세요 (gaheeno1):");
-    if (pw === null) return;
-    if (pw !== "gaheeno1") {
-      alert("비밀번호가 올바르지 않습니다.");
+  const handleConfirmReservationPw = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (reservationPwInput !== "gaheeno1") {
+      setReservationPwError("비밀번호가 올바르지 않습니다.");
       return;
     }
 
     setIsTogglingReservation(true);
     try {
-      await setReservationClosed(true, "부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
-      alert("예약이 닫혔습니다. 이제 방문자가 예약을 신청할 수 없으며 '부스 종료 시각인 12:00가 지나 예약이 닫혔습니다' 안내가 표시됩니다.");
-    } catch (e) {
-      console.error(e);
-      alert("예약 상태 변경에 실패했습니다.");
+      if (showReservationPwModal === "close") {
+        await setReservationClosed(true, "부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
+      } else {
+        await setReservationClosed(false);
+      }
+      setShowReservationPwModal(null);
+      setReservationPwInput("");
+      setReservationPwError("");
+    } catch (err) {
+      console.error(err);
+      setReservationPwError("상태 변경에 실패했습니다. 다시 시도해 주세요.");
     } finally {
       setIsTogglingReservation(false);
     }
@@ -1163,7 +1157,7 @@ function AdminPageContent() {
           <button
             type="button"
             disabled={isTogglingReservation}
-            onClick={handleToggleReservation}
+            onClick={() => handleOpenReservationPwModal(isReservationClosed ? "open" : "close")}
             className={`rounded-xl px-4 py-2.5 text-xs font-bold transition shadow-xs ${
               isReservationClosed
                 ? "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100"
@@ -2438,6 +2432,70 @@ function AdminPageContent() {
                   취소
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 예약 접수 마감/열기 비밀번호 모달 (마스킹 인풋 적용) */}
+        {showReservationPwModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+              <h3 className="text-lg font-bold text-neutral-900">
+                {showReservationPwModal === "close" ? "예약 접수 마감" : "예약 접수 다시 열기"}
+              </h3>
+              <p className="mt-1 text-xs text-neutral-500">
+                {showReservationPwModal === "close"
+                  ? "예약을 마감하려면 관리자 비밀번호를 입력해 주세요."
+                  : "예약을 다시 열려면 관리자 비밀번호를 입력해 주세요."}
+              </p>
+
+              <form onSubmit={handleConfirmReservationPw} className="mt-4">
+                <label className="block text-xs font-semibold text-neutral-700">
+                  관리자 비밀번호
+                </label>
+                <input
+                  type="password"
+                  autoFocus
+                  value={reservationPwInput}
+                  onChange={(e) => {
+                    setReservationPwInput(e.target.value);
+                    setReservationPwError("");
+                  }}
+                  placeholder="••••••••"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                />
+
+                {reservationPwError && (
+                  <p className="mt-2 text-xs font-bold text-rose-600">
+                    {reservationPwError}
+                  </p>
+                )}
+
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReservationPwModal(null);
+                      setReservationPwInput("");
+                      setReservationPwError("");
+                    }}
+                    className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isTogglingReservation || !reservationPwInput}
+                    className={`rounded-lg px-4 py-2 text-xs font-bold text-white transition ${
+                      showReservationPwModal === "close"
+                        ? "bg-rose-600 hover:bg-rose-700"
+                        : "bg-black hover:bg-neutral-800"
+                    } disabled:opacity-50`}
+                  >
+                    {showReservationPwModal === "close" ? "예약 닫기" : "다시 열기"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
