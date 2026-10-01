@@ -2,16 +2,18 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import AdminAuthGuard from "@/components/AdminAuthGuard";
 import AdminNav from "@/components/AdminNav";
-import { useLiveAuditLogs, useLiveCommonQuestions, useLiveInspections } from "@/lib/hooks";
+import { useLiveAuditLogs, useLiveCommonQuestions, useLiveInspections, useLiveReservations } from "@/lib/hooks";
 import {
   clearDraft,
   getDraft,
   inspectionRepo,
   questionRepo,
+  recordAuditLog,
+  reservationRepo,
   saveDraft,
 } from "@/lib/storage";
 import {
@@ -21,6 +23,7 @@ import {
   DetectionResult,
   InspectionSession,
   QuestionRecord,
+  Reservation,
 } from "@/lib/types";
 import { aggregateParticipants } from "@/lib/aggregation";
 
@@ -38,16 +41,128 @@ function generateParticipantId(): string {
 }
 
 function AdminPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const paramParticipantName = searchParams.get("participantName");
 
   const { data: inspections, refetch: refetchInspections } = useLiveInspections();
   const { data: commonQuestions, refetch: refetchQuestions } = useLiveCommonQuestions();
   const { data: auditLogs, refetch: refetchAuditLogs } = useLiveAuditLogs();
+  const { data: reservations } = useLiveReservations();
 
   // 상단 탭
   const [tab, setTab] = useState<AdminTab>("sessions");
   const [inspectionMode, setInspectionMode] = useState<InspectionMode>("none");
+
+  // 예약 대기열 상위 5명
+  const topQueue = useMemo(() => {
+    return reservations
+      .filter((r) => r.status === "대기")
+      .slice(0, 5);
+  }, [reservations]);
+
+  // 예약 처리 관련 상태
+  const [copiedPhoneId, setCopiedPhoneId] = useState<number | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<Reservation | null>(null);
+  const [undoItem, setUndoItem] = useState<{
+    id: number;
+    name: string;
+    section: string;
+    expireSeconds: number;
+  } | null>(null);
+
+  // 5초 Undo 카운트다운 타이머
+  useEffect(() => {
+    if (!undoItem) return;
+    const timer = setInterval(() => {
+      setUndoItem((prev) => {
+        if (!prev) return null;
+        if (prev.expireSeconds <= 1) return null;
+        return { ...prev, expireSeconds: prev.expireSeconds - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [undoItem]);
+
+  // 전화번호 복사 헬퍼
+  async function copyPhone(e: React.MouseEvent, row: Reservation) {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(row.phone);
+      setCopiedPhoneId(row.id);
+      setTimeout(() => setCopiedPhoneId(null), 1500);
+    } catch {
+      window.prompt("전화번호를 복사하세요:", row.phone);
+    }
+  }
+
+  // 큐 처리 (입장 처리)
+  async function processQueueItem(item: Reservation, thenInspect: boolean = false) {
+    try {
+      await reservationRepo.update(item.id, { status: "완료" });
+
+      await recordAuditLog({
+        operationId: `queue_${item.id}_${Date.now()}`,
+        targetType: "reservation",
+        targetId: String(item.id),
+        action: "update",
+        beforeVersion: 1,
+        afterVersion: 2,
+        changes: {
+          status: "완료",
+          previousStatus: "대기",
+          name: item.name,
+          section: item.section,
+        },
+        reason: thenInspect ? "대기열 처리 후 검사 시작" : "대기열 입장 처리",
+      });
+
+      setConfirmTarget(null);
+
+      if (thenInspect) {
+        router.push(`/admin?participantName=${encodeURIComponent(item.name)}`);
+      } else {
+        setUndoItem({
+          id: item.id,
+          name: item.name,
+          section: item.section,
+          expireSeconds: 5,
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      alert("대기열 처리에 실패했습니다.");
+    }
+  }
+
+  // 5초 Undo 실행
+  async function handleQueueUndo() {
+    if (!undoItem) return;
+    const target = undoItem;
+    try {
+      await reservationRepo.update(target.id, { status: "대기" });
+
+      await recordAuditLog({
+        operationId: `undo_${target.id}_${Date.now()}`,
+        targetType: "reservation",
+        targetId: String(target.id),
+        action: "restore",
+        beforeVersion: 2,
+        afterVersion: 3,
+        changes: {
+          status: "대기",
+          restoredFrom: "완료",
+          name: target.name,
+        },
+        reason: "대기열 처리 즉시 실행취소(Undo)",
+      });
+
+      setUndoItem(null);
+    } catch (e) {
+      console.error(e);
+      alert("실행 취소에 실패했습니다.");
+    }
+  }
 
   // 예약 대기열에서 "처리 후 검사"로 넘어온 경우 참가자 자동 세팅 (PROMPT.md 9)
   useEffect(() => {
@@ -728,6 +843,94 @@ function AdminPageContent() {
         )}
 
         {/* ------------------------------------------ */}
+        {/* 현재 대기열 상위 5명                       */}
+        {/* ------------------------------------------ */}
+        <section className="mt-8 rounded-2xl border-2 border-black bg-white p-6 sm:p-7 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                <h2 className="text-xl font-bold tracking-tight text-neutral-900">
+                  현재 대기열 상위 5명
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">
+                카드를 클릭하여 입장 처리하고, 전화번호를 클릭하여 번호를 바로 복사할 수 있습니다.
+              </p>
+            </div>
+            <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700">
+              총 대기 {reservations.filter((r) => r.status === "대기").length}팀
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {topQueue.map((item, idx) => (
+              <div
+                key={item.id}
+                onClick={() => setConfirmTarget(item)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setConfirmTarget(item);
+                  }
+                }}
+                className="group relative flex flex-col justify-between rounded-xl border border-neutral-300 bg-neutral-50/70 p-4 transition hover:border-black hover:bg-neutral-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-neutral-400">
+                      순번 {idx + 1}
+                    </span>
+                    <span className="rounded bg-white px-2 py-0.5 text-xs font-bold text-neutral-900 border border-neutral-200">
+                      #{String(item.id).padStart(3, "0")}
+                    </span>
+                  </div>
+
+                  <div className="mt-3">
+                    <p className="text-lg font-bold text-neutral-900 group-hover:text-black">
+                      {item.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-neutral-500">
+                      {item.section} 섹션 · {item.people}명 ({item.studentId})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-neutral-200/80 pt-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={(e) => copyPhone(e, item)}
+                    className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-mono font-bold text-neutral-800 hover:bg-neutral-100 transition active:scale-95"
+                    title="클릭하여 전화번호 복사"
+                  >
+                    <span>{item.phone}</span>
+                    <span className="text-[10px] text-neutral-400">복사</span>
+                  </button>
+
+                  {copiedPhoneId === item.id ? (
+                    <span className="text-xs font-bold text-emerald-600 animate-in fade-in">
+                      복사됨!
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-neutral-500 underline underline-offset-2">
+                      처리 →
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {topQueue.length === 0 && (
+              <div className="col-span-full rounded-xl border border-dashed border-neutral-300 py-10 text-center text-sm text-neutral-400">
+                현재 대기 중인 예약자가 없습니다.
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ------------------------------------------ */}
         {/* 새 검사 등록 섹션                         */}
         {/* ------------------------------------------ */}
         <section className="mt-8 rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
@@ -799,6 +1002,20 @@ function AdminPageContent() {
             </button>
           </div>
         </section>
+
+        {/* 전체 예약 명단 보기 버튼 */}
+        <div className="mt-4">
+          <Link
+            href="/reserve/admin"
+            className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-5 py-4 transition hover:border-black hover:bg-neutral-50"
+          >
+            <div>
+              <p className="text-sm font-semibold">전체 예약 명단 보기</p>
+              <p className="mt-0.5 text-xs text-neutral-500">총 {reservations.length}건의 예약을 조회합니다.</p>
+            </div>
+            <span className="text-lg text-neutral-400">→</span>
+          </Link>
+        </div>
 
         {/* ==================================================== */}
         {/* [검사 화면] 공통 질문 검사                           */}
@@ -2492,6 +2709,64 @@ function AdminPageContent() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 대기열 처리 확인 모달 */}
+        {confirmTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+              <h3 className="text-lg font-bold text-neutral-900">
+                {confirmTarget.name} 님을 대기열에서 처리할까요?
+              </h3>
+              <p className="mt-2 text-xs text-neutral-500">
+                #{String(confirmTarget.id).padStart(3, "0")} · {confirmTarget.section} 섹션 · {confirmTarget.people}명
+              </p>
+
+              <div className="mt-6 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => processQueueItem(confirmTarget, true)}
+                  className="w-full rounded-lg bg-black px-4 py-2.5 text-xs font-bold text-white hover:bg-neutral-800 transition"
+                >
+                  처리 후 검사
+                </button>
+                <button
+                  type="button"
+                  onClick={() => processQueueItem(confirmTarget, false)}
+                  className="w-full rounded-lg border border-black bg-white px-4 py-2.5 text-xs font-bold text-black hover:bg-neutral-50 transition"
+                >
+                  처리
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmTarget(null)}
+                  className="w-full rounded-lg border border-neutral-200 px-4 py-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 transition"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5초 실행취소(Undo) 토스트 */}
+        {undoItem && (
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border-2 border-black bg-neutral-900 p-4 text-white shadow-2xl animate-in slide-in-from-bottom-5 duration-200">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 border border-neutral-700 text-xs font-bold text-white">
+                {undoItem.expireSeconds}s
+              </span>
+              <p className="text-sm font-semibold text-white">
+                {undoItem.name} 대기열 처리됨
+              </p>
+            </div>
+            <button
+              onClick={handleQueueUndo}
+              className="rounded-lg border border-neutral-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 transition"
+            >
+              실행취소
+            </button>
           </div>
         )}
       </main>

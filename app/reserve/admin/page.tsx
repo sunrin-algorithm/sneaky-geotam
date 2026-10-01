@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import Header from "@/components/Header";
 import AdminAuthGuard from "@/components/AdminAuthGuard";
 import AdminNav from "@/components/AdminNav";
@@ -68,46 +67,13 @@ function ReservationActions({
 }
 
 export default function ReservationAdmin() {
-  const router = useRouter();
   const { data: rows, refetch } = useLiveReservations();
-
-  // 대기열 큐 상태
-  const [copiedPhoneId, setCopiedPhoneId] = useState<number | null>(null);
-  const [confirmTarget, setConfirmTarget] = useState<Reservation | null>(null);
-
-  // 5초 Undo 토스트 상태 (PROMPT.md 10)
-  const [undoItem, setUndoItem] = useState<{
-    id: number;
-    name: string;
-    section: string;
-    expireSeconds: number;
-  } | null>(null);
 
   // 필터 및 검색
   const [section, setSection] = useState("전체");
   const [status, setStatus] = useState("전체");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
-
-  // 5초 Undo 카운트다운 타이머
-  useEffect(() => {
-    if (!undoItem) return;
-    const timer = setInterval(() => {
-      setUndoItem((prev) => {
-        if (!prev) return null;
-        if (prev.expireSeconds <= 1) return null;
-        return { ...prev, expireSeconds: prev.expireSeconds - 1 };
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [undoItem]);
-
-  // 대기 중인 예약 상위 5명 (순서: id 오름차순 / 등록순)
-  const topQueue = useMemo(() => {
-    return rows
-      .filter((r) => r.status === "대기")
-      .slice(0, 5);
-  }, [rows]);
 
   const filtered = useMemo(() => {
     return rows.filter((row) => {
@@ -118,89 +84,13 @@ export default function ReservationAdmin() {
     });
   }, [rows, section, status, query]);
 
-  // 전화번호 복사 헬퍼 (PROMPT.md 8)
+  // 전화번호 복사 헬퍼
   async function copyPhone(e: React.MouseEvent, row: Reservation) {
-    e.stopPropagation(); // 카드 클릭(처리 확인) 이벤트 전파 방지
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(row.phone);
-      setCopiedPhoneId(row.id);
-      setTimeout(() => setCopiedPhoneId(null), 1500);
     } catch {
-      // 복사 실패 폴백
       window.prompt("전화번호를 복사하세요:", row.phone);
-    }
-  }
-
-  // 큐 처리 (입장 처리) (PROMPT.md 8, 9, 21, 22)
-  async function processQueueItem(item: Reservation, thenInspect: boolean = false) {
-    try {
-      await reservationRepo.update(item.id, { status: "완료" });
-
-      // 감사 로그 기록
-      await recordAuditLog({
-        operationId: `queue_${item.id}_${Date.now()}`,
-        targetType: "reservation",
-        targetId: String(item.id),
-        action: "update",
-        beforeVersion: 1,
-        afterVersion: 2,
-        changes: {
-          status: "완료",
-          previousStatus: "대기",
-          name: item.name,
-          section: item.section,
-        },
-        reason: thenInspect ? "대기열 처리 후 검사 시작" : "대기열 입장 처리",
-      });
-
-      setConfirmTarget(null);
-      refetch();
-
-      if (thenInspect) {
-        // 처리 후 검사: /admin으로 이동하며 참가자 이름 전달
-        router.push(`/admin?participantName=${encodeURIComponent(item.name)}`);
-      } else {
-        // 일반 처리: 5초 Undo 토스트 가동
-        setUndoItem({
-          id: item.id,
-          name: item.name,
-          section: item.section,
-          expireSeconds: 5,
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      alert("대기열 처리에 실패했습니다.");
-    }
-  }
-
-  // 5초 Undo 실행 (PROMPT.md 10, 11)
-  async function handleQueueUndo() {
-    if (!undoItem) return;
-    const target = undoItem;
-    try {
-      await reservationRepo.update(target.id, { status: "대기" });
-
-      await recordAuditLog({
-        operationId: `undo_${target.id}_${Date.now()}`,
-        targetType: "reservation",
-        targetId: String(target.id),
-        action: "restore",
-        beforeVersion: 2,
-        afterVersion: 3,
-        changes: {
-          status: "대기",
-          restoredFrom: "완료",
-          name: target.name,
-        },
-        reason: "대기열 처리 즉시 실행취소(Undo)",
-      });
-
-      setUndoItem(null);
-      refetch();
-    } catch (e) {
-      console.error(e);
-      alert("실행 취소에 실패했습니다.");
     }
   }
 
@@ -268,186 +158,11 @@ export default function ReservationAdmin() {
             <p className="text-sm font-medium text-neutral-500">SUNRIN FESTIVAL 2026</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">예약 관리</h1>
             <p className="mt-2 text-sm text-neutral-600 sm:text-base">
-              현장 대기열 상위 5명을 실시간으로 처리하고 예약 현황을 관리합니다.
+              전체 예약 명단을 조회하고 관리합니다.
             </p>
           </div>
           <AdminNav active="reserve" />
         </div>
-
-        {/* ==================================================== */}
-        {/* 핵심 섹션: 현재 대기열 상위 5명 (PROMPT.md 7, 8, 9)     */}
-        {/* ==================================================== */}
-        <section className="mt-8 rounded-2xl border-2 border-black bg-white p-6 sm:p-7 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                <h2 className="text-xl font-bold tracking-tight text-neutral-900">
-                  현재 대기열 상위 5명
-                </h2>
-              </div>
-              <p className="mt-1 text-xs text-neutral-500">
-                카드를 클릭하여 입장 처리하고, 전화번호를 클릭하여 번호를 바로 복사할 수 있습니다.
-              </p>
-            </div>
-            <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700">
-              총 대기 {rows.filter((r) => r.status === "대기").length}팀
-            </span>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {topQueue.map((item, idx) => (
-              <div
-                key={item.id}
-                onClick={() => setConfirmTarget(item)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setConfirmTarget(item);
-                  }
-                }}
-                className="group relative flex flex-col justify-between rounded-xl border border-neutral-300 bg-neutral-50/70 p-4 transition hover:border-black hover:bg-neutral-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-black"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-400">
-                      순번 {idx + 1}
-                    </span>
-                    <span className="rounded bg-white px-2 py-0.5 text-xs font-bold text-neutral-900 border border-neutral-200">
-                      #{String(item.id).padStart(3, "0")}
-                    </span>
-                  </div>
-
-                  <div className="mt-3">
-                    <p className="text-lg font-bold text-neutral-900 group-hover:text-black">
-                      {item.name}
-                    </p>
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                      {item.section} 섹션 · {item.people}명 ({item.studentId})
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 border-t border-neutral-200/80 pt-3 flex items-center justify-between">
-                  {/* 전화번호 클릭 영역 (복사 ONLY, stopPropagation) */}
-                  <button
-                    type="button"
-                    onClick={(e) => copyPhone(e, item)}
-                    className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-mono font-bold text-neutral-800 hover:bg-neutral-100 transition active:scale-95"
-                    title="클릭하여 전화번호 복사"
-                  >
-                    <span>{item.phone}</span>
-                    <span className="text-[10px] text-neutral-400">복사</span>
-                  </button>
-
-                  {copiedPhoneId === item.id ? (
-                    <span className="text-xs font-bold text-emerald-600 animate-in fade-in">
-                      복사됨!
-                    </span>
-                  ) : (
-                    <span className="text-xs font-medium text-neutral-500 underline underline-offset-2">
-                      처리 →
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {topQueue.length === 0 && (
-              <div className="col-span-full rounded-xl border border-dashed border-neutral-300 py-10 text-center text-sm text-neutral-400">
-                현재 대기 중인 예약자가 없습니다.
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ==================================================== */}
-        {/* 대기열 처리 확인 모달 (PROMPT.md 8, 9)                */}
-        {/* ==================================================== */}
-        {confirmTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150">
-              <h3 className="text-lg font-bold text-neutral-900">
-                {confirmTarget.name} 님을 대기열에서 처리할까요?
-              </h3>
-              <p className="mt-2 text-xs text-neutral-500">
-                #{String(confirmTarget.id).padStart(3, "0")} · {confirmTarget.section} 섹션 · {confirmTarget.people}명
-              </p>
-
-              <div className="mt-6 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => processQueueItem(confirmTarget, true)}
-                  className="w-full rounded-lg bg-black px-4 py-2.5 text-xs font-bold text-white hover:bg-neutral-800 transition"
-                >
-                  처리 후 검사
-                </button>
-                <button
-                  type="button"
-                  onClick={() => processQueueItem(confirmTarget, false)}
-                  className="w-full rounded-lg border border-black bg-white px-4 py-2.5 text-xs font-bold text-black hover:bg-neutral-50 transition"
-                >
-                  처리
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmTarget(null)}
-                  className="w-full rounded-lg border border-neutral-200 px-4 py-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 transition"
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ==================================================== */}
-        {/* 5초 실행취소(Undo) 토스트 (PROMPT.md 10)              */}
-        {/* ==================================================== */}
-        {undoItem && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border-2 border-black bg-neutral-900 p-4 text-white shadow-2xl animate-in slide-in-from-bottom-5 duration-200">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 border border-neutral-700 text-xs font-bold text-white">
-                {undoItem.expireSeconds}s
-              </span>
-              <p className="text-sm font-semibold text-white">
-                {undoItem.name} 대기열 처리됨
-              </p>
-            </div>
-            <button
-              onClick={handleQueueUndo}
-              className="rounded-lg border border-neutral-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 transition"
-            >
-              실행취소
-            </button>
-          </div>
-        )}
-
-        {/* ==================================================== */}
-        {/* 전체 예약 통계 카드                                  */}
-        {/* ==================================================== */}
-        <section className="mt-8" aria-label="섹션별 대기 현황">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {(["자율", "공통"] as const).map((value) => {
-              const waitingCount = rows.filter((r) => r.section === value && r.status === "대기").length;
-              const callingCount = rows.filter((r) => r.section === value && r.status === "호출").length;
-              return (
-                <div key={value} className="rounded-xl border border-neutral-200 bg-white p-5">
-                  <h2 className="text-sm font-semibold text-neutral-600">{value} 섹션</h2>
-                  <p className="mt-3 text-3xl font-bold">
-                    {waitingCount}
-                    <span className="ml-2 text-sm font-normal text-neutral-600">팀 대기 중</span>
-                  </p>
-                  <p className="mt-2 text-sm text-neutral-500">
-                    현재 호출 중: <strong>{callingCount}</strong>팀
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
 
         {/* ==================================================== */}
         {/* 전체 예약 목록 테이블                                 */}
