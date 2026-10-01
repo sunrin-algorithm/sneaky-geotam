@@ -89,7 +89,7 @@ export default function AdminNav({ active }: AdminNavProps) {
         href="/admin"
         className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
           currentTab === "admin"
-            ? "border border-black bg-black text-white"
+            ? "border border-black bg-black !text-white"
             : "border border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
         }`}
       >
@@ -100,7 +100,7 @@ export default function AdminNav({ active }: AdminNavProps) {
         href="/reserve/admin"
         className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
           currentTab === "reserve"
-            ? "border border-black bg-black text-white"
+            ? "border border-black bg-black !text-white"
             : "border border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
         }`}
       >
@@ -112,7 +112,7 @@ export default function AdminNav({ active }: AdminNavProps) {
           href="/log"
           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
             currentTab === "log"
-              ? "border border-black bg-black text-white"
+              ? "border border-black bg-black !text-white"
               : "border border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
           }`}
         >

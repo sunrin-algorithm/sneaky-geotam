@@ -33,12 +33,26 @@ export default function ReservePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const heading = useRef<HTMLHeadingElement>(null);
+  const peopleInputRef = useRef<HTMLInputElement>(null);
   const mounted = useRef(false);
 
   useEffect(() => {
     if (mounted.current) heading.current?.focus();
     mounted.current = true;
   }, [step]);
+
+  useEffect(() => {
+    if (step === "form" && peopleInputRef.current) {
+      const people = parseInt(details.people, 10) || 1;
+      if (selectedKey === "free") {
+        peopleInputRef.current.setCustomValidity(
+          people < 2 ? "1인의 경우 공통섹션 지원만 가능합니다!" : ""
+        );
+      } else {
+        peopleInputRef.current.setCustomValidity("");
+      }
+    }
+  }, [step, selectedKey, details.people]);
 
   // 대기 현황 계산 (실제 데이터 기반)
   const queueStats = useMemo(() => {
@@ -55,12 +69,26 @@ export default function ReservePage() {
     setSelectedKey(value);
     setAgreed(false);
     setStep("form");
+    if (value === "free") {
+      const people = parseInt(details.people, 10) || 1;
+      peopleInputRef.current?.setCustomValidity(
+        people < 2 ? "1인의 경우 공통섹션 지원만 가능합니다!" : ""
+      );
+    } else {
+      peopleInputRef.current?.setCustomValidity("");
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!agreed) {
       alert("주의 사항을 확인하고 체크해 주세요.");
+      return;
+    }
+
+    const peopleCount = parseInt(details.people, 10) || 1;
+    if (selectedKey === "free" && peopleCount < 2) {
+      alert("1인의 경우 공통섹션 지원만 가능합니다!");
       return;
     }
 
@@ -288,18 +316,39 @@ export default function ReservePage() {
               <label className="block text-sm font-medium">
                 인원 수
                 <input
+                  ref={peopleInputRef}
                   name="people"
                   type="number"
                   inputMode="numeric"
-                  min={1}
+                  min={selectedKey === "free" ? 2 : 1}
                   max={20}
                   step={1}
                   required
-                  placeholder="본인 포함 참여 인원"
+                  placeholder={selectedKey === "free" ? "본인 포함 참여 인원 (최소 2명)" : "본인 포함 참여 인원"}
                   value={details.people}
-                  onChange={(e) => setDetails({ ...details, people: e.target.value })}
+                  onChange={(e) => {
+                    setDetails({ ...details, people: e.target.value });
+                    if (selectedKey === "free") {
+                      const val = parseInt(e.target.value, 10) || 1;
+                      e.target.setCustomValidity(
+                        val < 2 ? "1인의 경우 공통섹션 지원만 가능합니다!" : ""
+                      );
+                    } else {
+                      e.target.setCustomValidity("");
+                    }
+                  }}
+                  onInvalid={(e) => {
+                    if (selectedKey === "free") {
+                      (e.target as HTMLInputElement).setCustomValidity("1인의 경우 공통섹션 지원만 가능합니다!");
+                    }
+                  }}
                   className="mt-2 w-full rounded-lg border border-neutral-300 p-3 font-normal outline-none focus:border-black"
                 />
+                {selectedKey === "free" && (
+                  <span className="mt-1 block text-xs font-normal text-neutral-500">
+                    자율 섹션은 2명 이상부터 지원 가능합니다.
+                  </span>
+                )}
               </label>
 
               <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm">
