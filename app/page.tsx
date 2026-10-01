@@ -34,12 +34,12 @@ export default function Home() {
             >
               검색
             </Link>
-            {/* <Link
-              href="/admin"
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 hover:text-black hover:bg-neutral-50"
+            <Link
+              href="/reserve"
+              className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
             >
-              관리자
-            </Link> */}
+              {"예약하러가기 ->"}
+            </Link>
           </div>
         </div>
 

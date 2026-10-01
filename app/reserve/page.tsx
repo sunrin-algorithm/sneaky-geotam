@@ -348,7 +348,8 @@ export default function ReservePage() {
               <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm">
                 <h2 className="font-semibold text-neutral-900">예약 전 확인해 주세요</h2>
                 <ul className="mt-2 list-disc space-y-1 pl-5 leading-6 text-neutral-600">
-                  <li>연락 후 5분 간 부스에 도착하지 못할 시 예약은 자동 취소될 수 있습니다.</li>
+                  <li>예약 차례가 다가왔을 때 전화를 통해 연락을 총 2번 드립니다.</li>
+                  <li>2번의 연락을 모두 받지 못할 시 취소 처리될 수 있습니다.</li>
                   <li>{sections[selectedKey].notice}</li>
                 </ul>
               </div>
