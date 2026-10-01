@@ -918,11 +918,22 @@ function AdminPageContent() {
                   </div>
 
                   <div className="mt-3">
-                    <p className="text-lg font-bold text-neutral-900 group-hover:text-black">
-                      {item.name}
-                    </p>
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                      {item.section} 섹션 · {item.people}명 ({item.studentId})
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-bold text-neutral-900 group-hover:text-black">
+                        {item.name}
+                      </p>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                          item.section.includes("공통")
+                            ? "border border-blue-200 bg-blue-50 text-blue-700"
+                            : "border border-purple-200 bg-purple-50 text-purple-700"
+                        }`}
+                      >
+                        {item.section.includes("공통") ? "공통 섹션" : "자율 섹션"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      {item.people}명 ({item.studentId})
                     </p>
                   </div>
                 </div>
@@ -2298,9 +2309,21 @@ function AdminPageContent() {
               <h3 className="text-lg font-bold text-neutral-900">
                 {confirmTarget.name} 님을 대기열에서 처리할까요?
               </h3>
-              <p className="mt-2 text-xs text-neutral-500">
-                #{String(confirmTarget.id).padStart(3, "0")} · {confirmTarget.section} 섹션 · {confirmTarget.people}명
-              </p>
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-neutral-500">
+                <span>#{String(confirmTarget.id).padStart(3, "0")}</span>
+                <span>·</span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                    confirmTarget.section.includes("공통")
+                      ? "border border-blue-200 bg-blue-50 text-blue-700"
+                      : "border border-purple-200 bg-purple-50 text-purple-700"
+                  }`}
+                >
+                  {confirmTarget.section.includes("공통") ? "공통 섹션" : "자율 섹션"}
+                </span>
+                <span>·</span>
+                <span>{confirmTarget.people}명</span>
+              </div>
 
               <div className="mt-6 flex flex-col gap-2">
                 <button
