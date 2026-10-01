@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -90,7 +90,7 @@ export default function AdminNav({ active }: AdminNavProps) {
         className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
           currentTab === "admin"
             ? "border border-black bg-black text-white"
-            : "border border-neutral-200 bg-white text-neutral-600 hover:border-black hover:text-black"
+            : "border border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
         }`}
       >
         기록 작업
@@ -101,7 +101,7 @@ export default function AdminNav({ active }: AdminNavProps) {
         className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
           currentTab === "reserve"
             ? "border border-black bg-black text-white"
-            : "border border-neutral-200 bg-white text-neutral-600 hover:border-black hover:text-black"
+            : "border border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
         }`}
       >
         예약 관리
@@ -113,7 +113,7 @@ export default function AdminNav({ active }: AdminNavProps) {
           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
             currentTab === "log"
               ? "border border-black bg-black text-white"
-              : "border border-neutral-200 bg-white text-neutral-600 hover:border-black hover:text-black"
+              : "border border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
           }`}
         >
           LOG

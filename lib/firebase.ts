@@ -1,7 +1,6 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, connectFirestoreEmulator, Firestore } from "firebase/firestore";
-import { getAuth, connectAuthEmulator, Auth } from "firebase/auth";
-import { getFunctions, connectFunctionsEmulator, Functions } from "firebase/functions";
+// Auth, Functions 제거됨
 
 function hasConfig(): boolean {
   return !!(
@@ -17,8 +16,6 @@ export function isFirebaseEnabled(): boolean {
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
-let auth: Auth | null = null;
-let functions: Functions | null = null;
 
 export function getApp(): FirebaseApp | null {
   if (!isFirebaseEnabled()) return null;
@@ -39,13 +36,9 @@ export function getApp(): FirebaseApp | null {
   }
 
   db = getFirestore(app);
-  auth = getAuth(app);
-  functions = getFunctions(app);
 
   if (process.env.NODE_ENV === "development") {
     connectFirestoreEmulator(db, "127.0.0.1", 8080);
-    connectAuthEmulator(auth, "http://127.0.0.1:9099");
-    connectFunctionsEmulator(functions, "127.0.0.1", 5001);
   }
 
   return app;
@@ -54,14 +47,4 @@ export function getApp(): FirebaseApp | null {
 export function getDb(): Firestore | null {
   if (!getApp()) return null;
   return db;
-}
-
-export function getFirebaseAuth(): Auth | null {
-  if (!getApp()) return null;
-  return auth;
-}
-
-export function getFirebaseFunctions(): Functions | null {
-  if (!getApp()) return null;
-  return functions;
-}
+}

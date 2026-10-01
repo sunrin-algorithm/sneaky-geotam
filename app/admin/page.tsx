@@ -763,13 +763,13 @@ function AdminPageContent() {
               className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
                 inspectionMode === "common"
                   ? "border-black bg-black text-white"
-                  : "border-neutral-200 bg-white hover:bg-neutral-100"
+                  : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
               }`}
             >
               <span className="text-base font-bold">공통 질문 검사 (5문항)</span>
               <span
                 className={`mt-1 block text-xs ${
-                  inspectionMode === "common" ? "text-white/80" : "text-neutral-500"
+                  inspectionMode === "common" ? "text-white/80" : "text-neutral-600"
                 }`}
               >
                 사전 선정된 5개 질문을 순서대로 진행합니다.
@@ -785,13 +785,13 @@ function AdminPageContent() {
               className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
                 inspectionMode === "custom"
                   ? "border-black bg-black text-white"
-                  : "border-neutral-200 bg-white hover:bg-neutral-100"
+                  : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
               }`}
             >
               <span className="text-base font-bold">자율 질문 검사 (연속 기록)</span>
               <span
                 className={`mt-1 block text-xs ${
-                  inspectionMode === "custom" ? "text-white/80" : "text-neutral-500"
+                  inspectionMode === "custom" ? "text-white/80" : "text-neutral-600"
                 }`}
               >
                 직접 질문을 입력하며 여러 참가자를 연속으로 기록합니다.
@@ -1773,23 +1773,23 @@ function AdminPageContent() {
         {/* 관리 탭 네비게이션                        */}
         {/* ------------------------------------------ */}
         <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 pb-3">
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setTab("sessions")}
-              className={`text-lg font-bold pb-1 transition-colors ${
+              className={`rounded-lg border px-4 py-2 text-sm font-bold transition ${
                 tab === "sessions"
-                  ? "text-black border-b-2 border-black"
-                  : "text-neutral-400 hover:text-black"
+                  ? "border-black bg-black text-white"
+                  : "border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
               }`}
             >
               검사 세션 관리 ({activeSessions.length})
             </button>
             <button
               onClick={() => setTab("questions")}
-              className={`text-lg font-bold pb-1 transition-colors ${
+              className={`rounded-lg border px-4 py-2 text-sm font-bold transition ${
                 tab === "questions"
-                  ? "text-black border-b-2 border-black"
-                  : "text-neutral-400 hover:text-black"
+                  ? "border-black bg-black text-white"
+                  : "border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
               }`}
             >
               공통 질문 관리 ({commonQuestions.length}/5)

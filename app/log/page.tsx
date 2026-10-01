@@ -179,33 +179,33 @@ export default function LogPage() {
         </div>
 
         {/* 탭 네비게이션 */}
-        <div className="mt-8 flex flex-wrap gap-4 border-b border-neutral-200 pb-3">
+        <div className="mt-8 flex flex-wrap items-center gap-2 border-b border-neutral-200 pb-3">
           <button
             onClick={() => setTab("inspections")}
-            className={`text-base font-bold pb-1 transition-colors ${
+            className={`rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-bold transition ${
               tab === "inspections"
-                ? "text-black border-b-2 border-black"
-                : "text-neutral-400 hover:text-black"
+                ? "border-black bg-black text-white"
+                : "border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
             }`}
           >
             검사 로그 관리 ({inspections.length})
           </button>
           <button
             onClick={() => setTab("reservations")}
-            className={`text-base font-bold pb-1 transition-colors ${
+            className={`rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-bold transition ${
               tab === "reservations"
-                ? "text-black border-b-2 border-black"
-                : "text-neutral-400 hover:text-black"
+                ? "border-black bg-black text-white"
+                : "border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
             }`}
           >
             예약 처리 로그 ({reservations.length})
           </button>
           <button
             onClick={() => setTab("audits")}
-            className={`text-base font-bold pb-1 transition-colors ${
+            className={`rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-bold transition ${
               tab === "audits"
-                ? "text-black border-b-2 border-black"
-                : "text-neutral-400 hover:text-black"
+                ? "border-black bg-black text-white"
+                : "border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
             }`}
           >
             전체 감사 이력 ({auditLogs.length})

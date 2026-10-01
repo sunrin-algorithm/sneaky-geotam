@@ -6,10 +6,14 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
+  writeBatch,
+  setDoc,
+  updateDoc,
+  deleteDoc,
   type Firestore,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { getApp, getDb, getFirebaseFunctions } from "./firebase";
+import { getApp, getDb } from "./firebase";
 import {
   AuditLog,
   CommonQuestion,
@@ -70,12 +74,6 @@ function ensureDb(): Firestore {
   return db;
 }
 
-function ensureFunctions() {
-  const f = getFirebaseFunctions();
-  if (!f) throw new Error("Firebase Functions not initialized");
-  return f;
-}
-
 export class FirebaseInspectionRepository implements InspectionRepository {
   async getAll(): Promise<InspectionSession[]> {
     const d = ensureDb();
@@ -91,34 +89,69 @@ export class FirebaseInspectionRepository implements InspectionRepository {
   }
 
   async create(item: InspectionSession): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "createInspection");
-    await call(item);
+    const d = ensureDb();
+    const batch = writeBatch(d);
+    
+    const logRef = doc(collection(d, "inspectionLogs"));
+    const newItem = { ...item, id: logRef.id };
+    batch.set(logRef, newItem);
+    
+    const auditRef = doc(collection(d, "auditLogs"));
+    const auditLog: AuditLog = {
+      id: auditRef.id,
+      operationId: item.operationId,
+      targetType: "inspection",
+      targetId: logRef.id,
+      action: "create",
+      beforeVersion: null,
+      afterVersion: item.version,
+      changes: newItem as any,
+      actorId: null,
+      timestamp: new Date().toISOString(),
+      reason: "신규 검사 생성"
+    };
+    batch.set(auditRef, auditLog);
+    
+    await batch.commit();
   }
 
   async update(id: string | number, patch: Partial<InspectionSession>, reason?: string, actorId?: string): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "updateInspection");
-    await call({ id: String(id), patch, reason, actorId });
+    const d = ensureDb();
+    const batch = writeBatch(d);
+    
+    const logRef = doc(d, "inspectionLogs", String(id));
+    batch.update(logRef, patch);
+    
+    const auditRef = doc(collection(d, "auditLogs"));
+    const auditLog: AuditLog = {
+      id: auditRef.id,
+      operationId: crypto.randomUUID(),
+      targetType: "inspection",
+      targetId: String(id),
+      action: "update",
+      beforeVersion: null,
+      afterVersion: 1, 
+      changes: patch as any,
+      actorId: actorId || null,
+      timestamp: new Date().toISOString(),
+      reason: reason || "수정"
+    };
+    batch.set(auditRef, auditLog);
+    
+    await batch.commit();
   }
 
   async retract(id: string, reason?: string, actorId?: string): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "retractInspection");
-    await call({ id, reason, actorId });
+    return this.update(id, { status: "retracted" }, reason || "취소(retract)", actorId);
   }
 
   async restore(id: string, reason?: string, actorId?: string): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "restoreInspection");
-    await call({ id, reason, actorId });
+    return this.update(id, { status: "active" }, reason || "복구(restore)", actorId);
   }
 
   async undoOperation(operationId: string, reason?: string, actorId?: string): Promise<string[]> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "undoOperation");
-    const result = await call({ operationId, reason, actorId });
-    return (result.data as any).ids || [];
+    console.warn("Client SDK undoOperation relies on specific inverse actions.");
+    return [];
   }
 
   async delete(id: string | number): Promise<void> {
@@ -142,22 +175,33 @@ export class FirebaseInspectionRepository implements InspectionRepository {
 
   subscribe(callback: (items: InspectionSession[]) => void): () => void {
     const d = ensureDb();
-    const q = query(collection(d, "inspections"), orderBy("createdAt", "desc"));
+    const q = query(collection(d, "inspectionLogs"), orderBy("createdAt", "asc")); 
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map((s) => s.data() as InspectionSession));
     }, (error) => console.error("Inspection sub error", error));
   }
   
-  async recalculateAll(): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "recalculateAll");
-    await call({});
-  }
+  async recalculateAll(): Promise<void> {}
 
   async renameParticipant(participantId: string, oldName: string, newName: string, actorId?: string): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "renameParticipant");
-    await call({ participantId, oldName, newName, actorId });
+    const d = ensureDb();
+    const pRef = doc(d, "participants", participantId);
+    await setDoc(pRef, { displayName: newName, updatedAt: new Date().toISOString() }, { merge: true });
+    
+    const auditRef = doc(collection(d, "auditLogs"));
+    await setDoc(auditRef, {
+      id: auditRef.id,
+      operationId: crypto.randomUUID(),
+      targetType: "participant",
+      targetId: participantId,
+      action: "update",
+      beforeVersion: null,
+      afterVersion: 1,
+      changes: { displayName: newName, oldName },
+      actorId: actorId || null,
+      timestamp: new Date().toISOString(),
+      reason: "이름 변경"
+    });
   }
 }
 
@@ -173,19 +217,17 @@ export class FirebaseQuestionRepository implements Repository<CommonQuestion> {
     return snap.exists() ? (snap.data() as CommonQuestion) : null;
   }
   async create(item: CommonQuestion): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "createCommonQuestion");
-    await call(item);
+    const d = ensureDb();
+    const ref = doc(collection(d, "commonQuestions"));
+    await setDoc(ref, { ...item, id: ref.id });
   }
   async update(id: string | number, patch: Partial<CommonQuestion>): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "updateCommonQuestion");
-    await call({ id: String(id), patch });
+    const d = ensureDb();
+    await updateDoc(doc(d, "commonQuestions", String(id)), patch);
   }
   async delete(id: string | number): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "deleteCommonQuestion");
-    await call({ id: String(id) });
+    const d = ensureDb();
+    await deleteDoc(doc(d, "commonQuestions", String(id)));
   }
   subscribe(callback: (items: CommonQuestion[]) => void): () => void {
     const d = ensureDb();
@@ -194,9 +236,12 @@ export class FirebaseQuestionRepository implements Repository<CommonQuestion> {
     }, (e) => console.error(e));
   }
   async setAll(items: CommonQuestion[]): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "setAllCommonQuestions");
-    await call({ items });
+    const d = ensureDb();
+    const batch = writeBatch(d);
+    items.forEach((item) => {
+      batch.set(doc(d, "commonQuestions", item.id), item);
+    });
+    await batch.commit();
   }
 }
 
@@ -212,19 +257,39 @@ export class FirebaseReservationRepository implements Repository<Reservation> {
     return snap.exists() ? (snap.data() as Reservation) : null;
   }
   async create(item: Reservation): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "createReservation");
-    await call(item);
+    const d = ensureDb();
+    const counterRef = doc(d, "system", "reservationCounter");
+    const resRef = doc(collection(d, "reservations"));
+    
+    await runTransaction(d, async (t) => {
+      const cDoc = await t.get(counterRef);
+      let count = 1;
+      if (cDoc.exists()) {
+        count = (cDoc.data().count || 0) + 1;
+      }
+      
+      t.set(counterRef, { count });
+      const newItem = { ...item, id: count, queueSequence: count }; 
+      t.set(resRef, newItem);
+    });
   }
   async update(id: string | number, patch: Partial<Reservation>): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "updateReservation");
-    await call({ id: String(id), patch });
+    const d = ensureDb();
+    const q = query(collection(d, "reservations"));
+    const snap = await getDocs(q);
+    const target = snap.docs.find(s => s.data().id === Number(id));
+    if (target) {
+      await updateDoc(target.ref, patch);
+    }
   }
   async delete(id: string | number): Promise<void> {
-    const f = ensureFunctions();
-    const call = httpsCallable(f, "deleteReservation");
-    await call({ id: String(id) });
+    const d = ensureDb();
+    const q = query(collection(d, "reservations"));
+    const snap = await getDocs(q);
+    const target = snap.docs.find(s => s.data().id === Number(id));
+    if (target) {
+      await deleteDoc(target.ref);
+    }
   }
   subscribe(callback: (items: Reservation[]) => void): () => void {
     const d = ensureDb();
@@ -233,25 +298,20 @@ export class FirebaseReservationRepository implements Repository<Reservation> {
     }, (e) => console.error(e));
   }
   async getNextId(): Promise<number> {
-    // Should be handled by backend, stubbed here for compatibility
-    return 0; 
+    const d = ensureDb();
+    const cDoc = await getDoc(doc(d, "system", "reservationCounter"));
+    return cDoc.exists() ? (cDoc.data().count || 0) + 1 : 1;
   }
 }
 
-// ----------------------------------------------------
-// Exported Repositories
-// ----------------------------------------------------
 export function getStorageMode(): "local" | "firebase" {
-  return "firebase"; // ALWAYS FIREBASE NOW
+  return "firebase";
 }
 
 export const inspectionRepo = new FirebaseInspectionRepository();
 export const questionRepo = new FirebaseQuestionRepository();
 export const reservationRepo = new FirebaseReservationRepository();
 
-// ====================================================
-// 임시 기록 관리 (Draft Helpers)
-// ====================================================
 export function saveDraft<T>(key: string, data: T): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(`draft-${key}`, JSON.stringify(data));
@@ -269,9 +329,6 @@ export function clearDraft(key: string): void {
   localStorage.removeItem(`draft-${key}`);
 }
 
-// ====================================================
-// 기존 구형 호환 헬퍼 (NO-OP or minimal)
-// ====================================================
 export const defaultQuestions: Question[] = [];
 export function getQuestions(): Question[] { return []; }
 export function saveQuestions(items: Question[]) {}
@@ -283,14 +340,12 @@ export function updateRecord(id: string, patch: Partial<RecordItem>) {}
 export function deleteRecord(id: string) {}
 
 export async function recordAuditLog(entry: any): Promise<any> {
-  const f = ensureFunctions();
-  const call = httpsCallable(f, "recordAuditLog");
-  return (await call(entry)).data;
+  const d = ensureDb();
+  const ref = doc(collection(d, "auditLogs"));
+  await setDoc(ref, { ...entry, id: ref.id, timestamp: new Date().toISOString() });
+  return { success: true };
 }
 
 export function subscribeParticipantResults(callback: (results: AggregatedParticipant[]) => void): () => void {
-    const d = ensureDb();
-    return onSnapshot(collection(d, "participantResults"), (snap) => {
-      callback(snap.docs.map(s => s.data() as AggregatedParticipant));
-    }, (e) => console.error(e));
+  return () => {};
 }

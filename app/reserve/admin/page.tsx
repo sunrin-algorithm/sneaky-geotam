@@ -470,7 +470,7 @@ export default function ReservationAdmin() {
                 className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
                   section === value
                     ? "border-black bg-black text-white"
-                    : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700"
+                    : "border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black"
                 }`}
               >
                 {value === "전체" ? "전체 섹션" : `${value} 섹션`}
