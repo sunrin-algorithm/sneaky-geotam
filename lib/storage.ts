@@ -21,6 +21,7 @@ import {
   Question,
   RecordItem,
   Reservation,
+  ReservationConfig,
   AggregatedParticipant,
 } from "./types";
 
@@ -257,6 +258,11 @@ export class FirebaseReservationRepository implements Repository<Reservation> {
     return snap.exists() ? (snap.data() as Reservation) : null;
   }
   async create(item: Reservation): Promise<void> {
+    const config = await getReservationConfig();
+    if (config.isClosed) {
+      throw new Error(config.closedReason || DEFAULT_CLOSED_REASON);
+    }
+
     const d = ensureDb();
     const counterRef = doc(d, "system", "reservationCounter");
     const resRef = doc(collection(d, "reservations"));
@@ -302,6 +308,119 @@ export class FirebaseReservationRepository implements Repository<Reservation> {
     const cDoc = await getDoc(doc(d, "system", "reservationCounter"));
     return cDoc.exists() ? (cDoc.data().count || 0) + 1 : 1;
   }
+}
+
+export const DEFAULT_CLOSED_REASON = "부스 종료 시각인 12:00가 지나 예약이 닫혔습니다";
+
+export async function getReservationConfig(): Promise<ReservationConfig> {
+  const localVal = typeof window !== "undefined" ? localStorage.getItem("lie-detector-reservation-config") : null;
+  let fallback: ReservationConfig = { isClosed: false, closedReason: DEFAULT_CLOSED_REASON };
+  if (localVal) {
+    try {
+      fallback = JSON.parse(localVal);
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const db = getDb();
+    if (!db) return fallback;
+    const snap = await getDoc(doc(db, "system", "reservationConfig"));
+    if (snap.exists()) {
+      const data = snap.data() as ReservationConfig;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("lie-detector-reservation-config", JSON.stringify(data));
+      }
+      return data;
+    }
+  } catch (e) {
+    console.error("Failed to getReservationConfig from Firestore:", e);
+  }
+  return fallback;
+}
+
+export async function setReservationClosed(isClosed: boolean, reason?: string): Promise<void> {
+  const config: ReservationConfig = {
+    isClosed,
+    closedReason: reason || DEFAULT_CLOSED_REASON,
+    closedAt: isClosed ? new Date().toISOString() : undefined,
+  };
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("lie-detector-reservation-config", JSON.stringify(config));
+    window.dispatchEvent(new Event("reservation-config-changed"));
+  }
+
+  try {
+    const db = getDb();
+    if (db) {
+      await setDoc(doc(db, "system", "reservationConfig"), config, { merge: true });
+    }
+  } catch (e) {
+    console.error("Failed to setReservationClosed in Firestore:", e);
+  }
+}
+
+export function subscribeReservationConfig(callback: (config: ReservationConfig) => void): () => void {
+  const localVal = typeof window !== "undefined" ? localStorage.getItem("lie-detector-reservation-config") : null;
+  const initial: ReservationConfig = localVal
+    ? (() => {
+        try {
+          return JSON.parse(localVal);
+        } catch {
+          return { isClosed: false, closedReason: DEFAULT_CLOSED_REASON };
+        }
+      })()
+    : { isClosed: false, closedReason: DEFAULT_CLOSED_REASON };
+  callback(initial);
+
+  const unsubscribers: (() => void)[] = [];
+
+  if (typeof window !== "undefined") {
+    const handleLocal = () => {
+      const v = localStorage.getItem("lie-detector-reservation-config");
+      if (v) {
+        try {
+          callback(JSON.parse(v));
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleLocal);
+    window.addEventListener("reservation-config-changed", handleLocal);
+    unsubscribers.push(() => {
+      window.removeEventListener("storage", handleLocal);
+      window.removeEventListener("reservation-config-changed", handleLocal);
+    });
+  }
+
+  try {
+    const db = getDb();
+    if (db) {
+      const unsubFirestore = onSnapshot(
+        doc(db, "system", "reservationConfig"),
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.data() as ReservationConfig;
+            if (typeof window !== "undefined") {
+              localStorage.setItem("lie-detector-reservation-config", JSON.stringify(data));
+            }
+            callback(data);
+          }
+        },
+        (e) => {
+          console.error("subscribeReservationConfig snapshot error:", e);
+        }
+      );
+      unsubscribers.push(unsubFirestore);
+    }
+  } catch (e) {
+    console.error("Failed to subscribeReservationConfig:", e);
+  }
+
+  return () => {
+    unsubscribers.forEach((u) => u());
+  };
 }
 
 export function getStorageMode(): "local" | "firebase" {

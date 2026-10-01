@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AuditLog, CommonQuestion, InspectionSession, Question, RecordItem, Reservation } from "./types";
-import { inspectionRepo, questionRepo, reservationRepo } from "./storage";
+import { AuditLog, CommonQuestion, InspectionSession, Question, RecordItem, Reservation, ReservationConfig } from "./types";
+import { inspectionRepo, questionRepo, reservationRepo, subscribeReservationConfig } from "./storage";
 import { getQuestions, getRecords, saveQuestions, replaceQuestions, replaceRecords } from "./storage";
 import { subscribeQuestions, subscribeRecords } from "./firestore";
 
@@ -112,6 +112,29 @@ export function useLiveReservations() {
   }, []);
 
   return { data: reservations, loading, refetch };
+}
+
+// ----------------------------------------------------
+// 신규 훅: 예약 접수 마감 상태 실시간 구독
+// ----------------------------------------------------
+export function useLiveReservationConfig() {
+  const [config, setConfig] = useState<ReservationConfig>({
+    isClosed: false,
+    closedReason: "부스 종료 시각인 12:00가 지나 예약이 닫혔습니다",
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeReservationConfig((c) => {
+      setConfig(c);
+      setLoading(false);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  return { config, isClosed: config.isClosed, loading };
 }
 
 // ----------------------------------------------------

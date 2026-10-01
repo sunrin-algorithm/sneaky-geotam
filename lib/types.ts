@@ -115,3 +115,9 @@ export interface Reservation {
   calledAt?: string;
   createdAt: string;
 }
+
+export interface ReservationConfig {
+  isClosed: boolean;
+  closedReason?: string;
+  closedAt?: string;
+}

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
-import { useLiveReservations } from "@/lib/hooks";
+import { useLiveReservations, useLiveReservationConfig } from "@/lib/hooks";
 import { reservationRepo } from "@/lib/storage";
 import { Reservation, ReservationSection } from "@/lib/types";
 
@@ -25,6 +25,7 @@ const sections: Record<SectionKey, { title: string; sectionName: ReservationSect
 
 export default function ReservePage() {
   const { data: allReservations } = useLiveReservations();
+  const { isClosed: isReservationClosed } = useLiveReservationConfig();
   const [step, setStep] = useState<Step>("home");
   const [selectedKey, setSelectedKey] = useState<SectionKey>("free");
   const [details, setDetails] = useState({ studentId: "", name: "", phone: "", people: "" });
@@ -65,7 +66,27 @@ export default function ReservePage() {
     return { free: freeWaiting, common: commonWaiting };
   }, [allReservations]);
 
+  useEffect(() => {
+    if (isReservationClosed && (step === "sections" || step === "form")) {
+      alert("부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
+      setStep("home");
+    }
+  }, [isReservationClosed, step]);
+
+  function handleStartReservation() {
+    if (isReservationClosed) {
+      alert("부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
+      return;
+    }
+    setStep("sections");
+  }
+
   function selectSection(value: SectionKey) {
+    if (isReservationClosed) {
+      alert("부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
+      setStep("home");
+      return;
+    }
     setSelectedKey(value);
     setAgreed(false);
     setStep("form");
@@ -81,6 +102,11 @@ export default function ReservePage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isReservationClosed) {
+      alert("부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
+      setStep("home");
+      return;
+    }
     if (!agreed) {
       alert("주의 사항을 확인하고 체크해 주세요.");
       return;
@@ -173,12 +199,30 @@ export default function ReservePage() {
               </p>
             </section>
 
+            {isReservationClosed && (
+              <div className="mt-8 rounded-xl border border-rose-300 bg-rose-50 p-5 text-rose-900 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🚫</span>
+                  <h3 className="text-base font-bold">
+                    부스 종료 시각인 12:00가 지나 예약이 닫혔습니다
+                  </h3>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-rose-700">
+                  현재 신규 온라인 예약 접수가 마감되었습니다. 부스 운영진의 현장 안내를 받아주시기 바랍니다.
+                </p>
+              </div>
+            )}
+
             <button
               type="button"
-              onClick={() => setStep("sections")}
-              className="mt-10 w-full rounded-lg bg-black px-5 py-3.5 font-medium text-white hover:bg-neutral-800 transition"
+              onClick={handleStartReservation}
+              className={`mt-10 w-full rounded-lg px-5 py-3.5 font-medium transition ${
+                isReservationClosed
+                  ? "bg-neutral-300 text-neutral-600 hover:bg-neutral-400 cursor-not-allowed"
+                  : "bg-black text-white hover:bg-neutral-800"
+              }`}
             >
-              예약하기
+              {isReservationClosed ? "예약 닫힘 (접수 마감)" : "예약하기"}
             </button>
 
             <details className="mt-6 rounded-xl border border-neutral-200 p-5">

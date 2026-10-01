@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import AdminAuthGuard from "@/components/AdminAuthGuard";
 import AdminNav from "@/components/AdminNav";
-import { useLiveAuditLogs, useLiveCommonQuestions, useLiveInspections, useLiveReservations } from "@/lib/hooks";
+import { useLiveAuditLogs, useLiveCommonQuestions, useLiveInspections, useLiveReservations, useLiveReservationConfig } from "@/lib/hooks";
 import {
   clearDraft,
   getDraft,
@@ -14,6 +14,7 @@ import {
   recordAuditLog,
   reservationRepo,
   saveDraft,
+  setReservationClosed,
 } from "@/lib/storage";
 import {
   Answer,
@@ -44,6 +45,48 @@ function AdminPageContent() {
   const { data: commonQuestions } = useLiveCommonQuestions();
   const { data: auditLogs, refetch: refetchAuditLogs } = useLiveAuditLogs();
   const { data: reservations } = useLiveReservations();
+  const { isClosed: isReservationClosed } = useLiveReservationConfig();
+  const [isTogglingReservation, setIsTogglingReservation] = useState(false);
+
+  const handleToggleReservation = async () => {
+    if (isReservationClosed) {
+      const pw = prompt("예약을 다시 열려면 비밀번호를 입력해 주세요 (gaheeno1):");
+      if (pw === null) return;
+      if (pw !== "gaheeno1") {
+        alert("비밀번호가 올바르지 않습니다.");
+        return;
+      }
+      setIsTogglingReservation(true);
+      try {
+        await setReservationClosed(false);
+        alert("예약이 다시 열렸습니다. 이제 방문자가 예약을 접수할 수 있습니다.");
+      } catch (e) {
+        console.error(e);
+        alert("예약 상태 변경에 실패했습니다.");
+      } finally {
+        setIsTogglingReservation(false);
+      }
+      return;
+    }
+
+    const pw = prompt("예약을 닫으려면 비밀번호를 입력해 주세요 (gaheeno1):");
+    if (pw === null) return;
+    if (pw !== "gaheeno1") {
+      alert("비밀번호가 올바르지 않습니다.");
+      return;
+    }
+
+    setIsTogglingReservation(true);
+    try {
+      await setReservationClosed(true, "부스 종료 시각인 12:00가 지나 예약이 닫혔습니다");
+      alert("예약이 닫혔습니다. 이제 방문자가 예약을 신청할 수 없으며 '부스 종료 시각인 12:00가 지나 예약이 닫혔습니다' 안내가 표시됩니다.");
+    } catch (e) {
+      console.error(e);
+      alert("예약 상태 변경에 실패했습니다.");
+    } finally {
+      setIsTogglingReservation(false);
+    }
+  };
 
   const [inspectionMode, setInspectionMode] = useState<InspectionMode>("none");
 
@@ -1083,6 +1126,53 @@ function AdminPageContent() {
             </button>
           </div>
         </section>
+
+        {/* ------------------------------------------ */}
+        {/* 예약 접수 마감 제어 (예약 닫기)            */}
+        {/* ------------------------------------------ */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span
+              className={`flex h-3 w-3 rounded-full ${
+                isReservationClosed ? "bg-rose-500" : "bg-emerald-500 animate-pulse"
+              }`}
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-neutral-900">
+                  온라인 예약 접수 상태: {isReservationClosed ? "마감됨" : "운영 중"}
+                </span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                    isReservationClosed
+                      ? "border border-rose-200 bg-rose-50 text-rose-700"
+                      : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {isReservationClosed ? "접수 차단" : "정상 접수 중"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                {isReservationClosed
+                  ? "부스 종료 시각인 12:00가 지나 예약이 닫혔습니다 (신규 예약 접수 불가)"
+                  : "현재 방문자가 정상적으로 축제 부스 예약을 신청할 수 있습니다."}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={isTogglingReservation}
+            onClick={handleToggleReservation}
+            className={`rounded-xl px-4 py-2.5 text-xs font-bold transition shadow-xs ${
+              isReservationClosed
+                ? "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100"
+                : "bg-rose-600 text-white hover:bg-rose-700 active:scale-95"
+            }`}
+          >
+            {isReservationClosed ? "예약 다시 열기" : "예약 닫기"}
+          </button>
+        </div>
 
         {/* ==================================================== */}
         {/* [검사 화면] 공통 질문 검사                           */}
