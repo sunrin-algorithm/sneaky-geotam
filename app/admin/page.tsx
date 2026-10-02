@@ -321,6 +321,7 @@ function AdminPageContent() {
   const [commonStep, setCommonStep] = useState<CommonStep>("init");
   const [commonParticipant, setCommonParticipant] = useState("");
   const [commonParticipantId, setCommonParticipantId] = useState("");
+  const [selectedCommonQuestions, setSelectedCommonQuestions] = useState<CommonQuestion[]>([]);
   const [commonCurrentIndex, setCommonCurrentIndex] = useState(0); // 0 ~ 4
   const [commonAnswer, setCommonAnswer] = useState<Answer | "">("");
   const [commonResult, setCommonResult] = useState<DetectionResult | "">("");
@@ -398,12 +399,19 @@ function AdminPageContent() {
       participantId?: string;
       records: QuestionRecord[];
       index: number;
+      selectedQuestions?: CommonQuestion[];
     }>("common");
     if (draft) {
       setCommonParticipant(draft.participant);
       setCommonParticipantId(draft.participantId || generateParticipantId());
       setCommonRecords(draft.records);
       setCommonCurrentIndex(draft.index);
+      if (draft.selectedQuestions && draft.selectedQuestions.length === 5) {
+        setSelectedCommonQuestions(draft.selectedQuestions);
+      } else {
+        const shuffled = [...commonQuestions].sort(() => Math.random() - 0.5);
+        setSelectedCommonQuestions(shuffled.slice(0, 5));
+      }
       setCommonStep("running");
       setInspectionMode("common");
     }
@@ -447,10 +455,15 @@ function AdminPageContent() {
     if (!trimmed) return;
     if (commonQuestions.length < 5) {
       alert(
-        "공통 질문이 5개 설정되어 있어야 검사를 시작할 수 있습니다. [공통 질문 관리] 탭에서 질문을 5개로 확정해주세요."
+        `공통 질문이 최소 5개 이상 등록되어 있어야 검사를 시작할 수 있습니다. (현재 ${commonQuestions.length}개 등록됨) 하단 [공통 질문 관리]에서 질문을 추가해 주세요.`
       );
       return;
     }
+
+    // 전체 질문 리스트에서 랜덤하게 5개 선정
+    const shuffled = [...commonQuestions].sort(() => Math.random() - 0.5);
+    const selected5 = shuffled.slice(0, 5);
+    setSelectedCommonQuestions(selected5);
 
     const pid = resolveParticipantIdByName(trimmed);
     setCommonParticipantId(pid);
@@ -468,7 +481,7 @@ function AdminPageContent() {
 
   function addCommonQuestionRecord() {
     if (!commonAnswer || !commonResult) return;
-    const currentQ = commonQuestions[commonCurrentIndex];
+    const currentQ = selectedCommonQuestions[commonCurrentIndex];
     if (!currentQ) return;
 
     const newRecord: QuestionRecord = {
@@ -491,6 +504,7 @@ function AdminPageContent() {
       participantId: commonParticipantId,
       records: nextRecords,
       index: commonCurrentIndex + 1,
+      selectedQuestions: selectedCommonQuestions,
     });
 
     if (commonCurrentIndex + 1 >= 5) {
@@ -1132,6 +1146,7 @@ function AdminPageContent() {
                 setCommonStep("init");
                 setCommonParticipant("");
                 setCommonParticipantId("");
+                setSelectedCommonQuestions([]);
               }}
               className={`rounded-xl border p-4 text-left transition flex flex-col justify-center min-h-[160px] ${
                 inspectionMode === "common"
@@ -1139,13 +1154,13 @@ function AdminPageContent() {
                   : "border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-100"
               }`}
             >
-              <span className="text-base font-bold">공통 질문 검사 (5문항)</span>
+              <span className="text-base font-bold">공통 질문 검사 (랜덤 5문항)</span>
               <span
                 className={`mt-1 block text-xs ${
                   inspectionMode === "common" ? "text-white/80" : "text-neutral-600"
                 }`}
               >
-                사전 선정된 5개 질문 후 개별 자율 섹션으로 이어집니다.
+                전체 질문 풀에서 랜덤 5개 질문 후 개별 자율 섹션으로 이어집니다.
               </span>
             </button>
 
@@ -1245,10 +1260,13 @@ function AdminPageContent() {
                   기존에 참여했던 참가자라면 자동으로 인식되어 동일한 기록에 통합됩니다.
                 </p>
 
-                {commonQuestions.length < 5 && (
+                {commonQuestions.length < 5 ? (
                   <p className="rounded-lg bg-red-50 p-3 text-xs text-red-600">
-                    현재 등록된 공통 질문이 {commonQuestions.length}개입니다. 5개 질문이 모두
-                    확정되어야 검사를 진행할 수 있습니다.
+                    현재 등록된 공통 질문이 {commonQuestions.length}개입니다. 최소 5개 이상의 질문이 등록되어 있어야 검사를 시작할 수 있습니다. 하단의 [공통 질문 관리]에서 질문을 등록해 주세요.
+                  </p>
+                ) : (
+                  <p className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-700 font-medium">
+                    🎲 등록된 총 {commonQuestions.length}개 질문 중 <strong>무작위 5개</strong>가 자동으로 추출되어 검사가 진행됩니다.
                   </p>
                 )}
 
@@ -1284,7 +1302,7 @@ function AdminPageContent() {
                   disabled={!commonParticipant.trim() || commonQuestions.length < 5}
                   className="w-full rounded-lg bg-black py-3 font-medium text-white disabled:opacity-30 hover:bg-neutral-800 transition"
                 >
-                  검사 시작 ({commonParticipant.trim() || "이름 미입력"})
+                  랜덤 5문항 검사 시작 ({commonParticipant.trim() || "이름 미입력"})
                 </button>
               </div>
             )}
@@ -1307,7 +1325,7 @@ function AdminPageContent() {
                 <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-5">
                   <p className="text-xs font-medium text-neutral-500">질문 내용</p>
                   <p className="mt-2 text-xl font-semibold text-neutral-900">
-                    {commonQuestions[commonCurrentIndex]?.content}
+                    {selectedCommonQuestions[commonCurrentIndex]?.content}
                   </p>
                 </div>
 
@@ -1785,6 +1803,7 @@ function AdminPageContent() {
                       setCommonStep("init");
                       setCommonParticipant("");
                       setCommonParticipantId("");
+                      setSelectedCommonQuestions([]);
                       setCommonRecords([]);
                       setLinkedCustomRecords([]);
                     }}
@@ -2451,26 +2470,26 @@ function AdminPageContent() {
                 </h2>
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                    commonQuestions.length === 5
+                    commonQuestions.length >= 5
                       ? "border border-blue-200 bg-blue-50 text-blue-700"
                       : "border border-amber-200 bg-amber-50 text-amber-700"
                   }`}
                 >
-                  {commonQuestions.length} / 5개 확정
+                  총 {commonQuestions.length}개 등록됨 {commonQuestions.length >= 5 ? "(검사 가능)" : "(최소 5개 필요)"}
                 </span>
               </div>
               <p className="mt-1 text-xs text-neutral-500">
-                공통 질문 검사는 사전에 등록된 <strong>정확히 5개의 질문</strong>으로 순서대로 진행됩니다.
+                공통 질문은 개수 제한 없이 자유롭게 추가할 수 있으며, 공통 질문 검사 시 전체 목록 중 <strong>랜덤 5개</strong>가 자동으로 추출되어 출제됩니다.
               </p>
             </div>
 
-            {commonQuestions.length === 5 ? (
+            {commonQuestions.length >= 5 ? (
               <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                ✓ 5개 질문이 정상 확정되어 있습니다.
+                ✓ 준비 완료 (검사 시 전체 {commonQuestions.length}개 중 무작위 5개 자동 추출)
               </span>
             ) : (
               <span className="text-xs font-bold text-amber-600">
-                ⚠️ 공통 검사를 위해 5개의 질문이 필요합니다 ({commonQuestions.length}/5)
+                ⚠️ 공통 검사를 위해 최소 5개의 질문이 필요합니다 ({commonQuestions.length}/5)
               </span>
             )}
           </div>
