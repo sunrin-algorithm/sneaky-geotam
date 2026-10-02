@@ -11,6 +11,7 @@ import {
   clearDraft,
   getDraft,
   inspectionRepo,
+  questionRepo,
   recordAuditLog,
   reservationRepo,
   saveDraft,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/storage";
 import {
   Answer,
+  CommonQuestion,
   DetectionResult,
   InspectionSession,
   QuestionRecord,
@@ -42,10 +44,60 @@ function AdminPageContent() {
   const paramParticipantName = searchParams.get("participantName");
 
   const { data: inspections, refetch: refetchInspections } = useLiveInspections();
-  const { data: commonQuestions } = useLiveCommonQuestions();
+  const { data: commonQuestions, refetch: refetchQuestions } = useLiveCommonQuestions();
   const { data: auditLogs, refetch: refetchAuditLogs } = useLiveAuditLogs();
   const { data: reservations } = useLiveReservations();
   const { isClosed: isReservationClosed } = useLiveReservationConfig();
+
+  // 공통 질문 관리 상태
+  const [newQuestionText, setNewQuestionText] = useState("");
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editingQuestionText, setEditingQuestionText] = useState("");
+
+  // ==========================================
+  // [공통 질문 관리] 핸들러
+  // ==========================================
+  async function addCommonQuestion() {
+    if (!newQuestionText.trim()) return;
+    const nextOrder =
+      commonQuestions.length > 0 ? Math.max(...commonQuestions.map((q) => q.order)) + 1 : 1;
+    const newQ: CommonQuestion = {
+      id: crypto.randomUUID(),
+      content: newQuestionText.trim(),
+      order: nextOrder,
+    };
+    await questionRepo.create(newQ);
+    setNewQuestionText("");
+    refetchQuestions();
+  }
+
+  async function deleteCommonQuestion(id: string) {
+    if (!confirm("정말 이 질문을 삭제하시겠습니까?")) return;
+    await questionRepo.delete(id);
+    refetchQuestions();
+  }
+
+  async function moveCommonQuestion(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= commonQuestions.length) return;
+
+    const list = [...commonQuestions];
+    const temp = list[index];
+    list[index] = list[targetIndex];
+    list[targetIndex] = temp;
+
+    const reordered = list.map((q, i) => ({ ...q, order: i + 1 }));
+    await questionRepo.setAll(reordered);
+    refetchQuestions();
+  }
+
+  async function saveEditedQuestion(id: string) {
+    if (!editingQuestionText.trim()) return;
+    await questionRepo.update(id, { content: editingQuestionText.trim() });
+    setEditingQuestionId(null);
+    setEditingQuestionText("");
+    refetchQuestions();
+  }
   const [isTogglingReservation, setIsTogglingReservation] = useState(false);
   const [showReservationPwModal, setShowReservationPwModal] = useState<"close" | "open" | null>(null);
   const [reservationPwInput, setReservationPwInput] = useState("");
@@ -2385,6 +2437,163 @@ function AdminPageContent() {
             )}
           </section>
         )}
+
+        {/* ==================================================== */}
+        {/* 공통 질문 관리 섹션                                 */}
+        {/* ==================================================== */}
+        <section className="mt-8 rounded-2xl border-2 border-black bg-white p-6 sm:p-7 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600"></span>
+                <h2 className="text-xl font-bold tracking-tight text-neutral-900">
+                  공통 질문 관리
+                </h2>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                    commonQuestions.length === 5
+                      ? "border border-blue-200 bg-blue-50 text-blue-700"
+                      : "border border-amber-200 bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {commonQuestions.length} / 5개 확정
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">
+                공통 질문 검사는 사전에 등록된 <strong>정확히 5개의 질문</strong>으로 순서대로 진행됩니다.
+              </p>
+            </div>
+
+            {commonQuestions.length === 5 ? (
+              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                ✓ 5개 질문이 정상 확정되어 있습니다.
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-amber-600">
+                ⚠️ 공통 검사를 위해 5개의 질문이 필요합니다 ({commonQuestions.length}/5)
+              </span>
+            )}
+          </div>
+
+          {/* 질문 추가 입력 폼 */}
+          <div className="mt-5 flex gap-2">
+            <input
+              value={newQuestionText}
+              onChange={(e) => setNewQuestionText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCommonQuestion();
+                }
+              }}
+              className="min-w-0 flex-1 rounded-xl border border-neutral-300 px-4 py-2.5 text-sm outline-none focus:border-black focus:ring-1 focus:ring-black"
+              placeholder="추가할 공통 질문 내용 입력 후 Enter"
+            />
+            <button
+              type="button"
+              onClick={addCommonQuestion}
+              className="rounded-xl bg-black px-5 py-2.5 text-xs font-bold text-white hover:bg-neutral-800 transition active:scale-95"
+            >
+              + 질문 추가
+            </button>
+          </div>
+
+          {/* 질문 목록 */}
+          <div className="mt-4 divide-y divide-neutral-100 rounded-xl border border-neutral-200 overflow-hidden bg-white">
+            {commonQuestions.map((q, idx) => (
+              <div
+                key={q.id}
+                className="flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-neutral-50/50 transition"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700 border border-blue-200">
+                    {idx + 1}
+                  </span>
+                  {editingQuestionId === q.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        value={editingQuestionText}
+                        onChange={(e) => setEditingQuestionText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveEditedQuestion(q.id);
+                          }
+                        }}
+                        autoFocus
+                        className="flex-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-black"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveEditedQuestion(q.id)}
+                        className="rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white hover:bg-neutral-800"
+                      >
+                        저장
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingQuestionId(null)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="font-medium text-neutral-900 text-sm">
+                      {q.content}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => moveCommonQuestion(idx, "up")}
+                    disabled={idx === 0}
+                    className="rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-bold text-neutral-700 disabled:opacity-30 hover:bg-neutral-100 transition"
+                    title="위로 이동"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveCommonQuestion(idx, "down")}
+                    disabled={idx === commonQuestions.length - 1}
+                    className="rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-bold text-neutral-700 disabled:opacity-30 hover:bg-neutral-100 transition"
+                    title="아래로 이동"
+                  >
+                    ▼
+                  </button>
+                  {editingQuestionId !== q.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingQuestionId(q.id);
+                        setEditingQuestionText(q.content);
+                      }}
+                      className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition"
+                    >
+                      수정
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => deleteCommonQuestion(q.id)}
+                    className="rounded-lg border border-rose-200 bg-white px-3 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 transition"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {commonQuestions.length === 0 && (
+              <div className="p-8 text-center text-sm text-neutral-400">
+                등록된 공통 질문이 없습니다. 질문을 추가해 주세요.
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* 대기열 처리 확인 모달 */}
         {confirmTarget && (
